@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Household Finance</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --color-bg: #ffffff;
+      --color-bg-secondary: #f8f8f7;
+      --color-bg-tertiary: #f1efe8;
+      --color-text-primary: #1a1a18;
+      --color-text-secondary: #5f5e5a;
+      --color-text-tertiary: #888780;
+      --color-border: rgba(0,0,0,0.12);
+      --color-border-md: rgba(0,0,0,0.25);
+      --color-success-bg: #eaf3de;
+      --color-success-text: #3b6d11;
+      --color-danger-bg: #fcebeb;
+      --color-danger-text: #a32d2d;
+      --color-info-bg: #e6f1fb;
+      --color-info-text: #185fa5;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --color-bg: #1e1e1c;
+        --color-bg-secondary: #2a2a28;
+        --color-bg-tertiary: #333330;
+        --color-text-primary: #f0ede8;
+        --color-text-secondary: #b4b2a9;
+        --color-text-tertiary: #888780;
+        --color-border: rgba(255,255,255,0.1);
+        --color-border-md: rgba(255,255,255,0.2);
+        --color-success-bg: #173404;
+        --color-success-text: #c0dd97;
+        --color-danger-bg: #501313;
+        --color-danger-text: #f7c1c1;
+        --color-info-bg: #042c53;
+        --color-info-text: #b5d4f4;
+      }
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 15px;
+      color: var(--color-text-primary);
+      background: var(--color-bg-tertiary);
+      min-height: 100vh;
+    }
+
+    .app-header {
+      background: var(--color-bg);
+      border-bottom: 0.5px solid var(--color-border);
+      padding: 0 2rem;
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+    }
+
+    .app-logo {
+      font-size: 15px;
+      font-weight: 500;
+      padding: 1rem 0;
+      color: var(--color-text-primary);
+      white-space: nowrap;
+    }
+
+    .nav-tabs {
+      display: flex;
+      gap: 0;
+      flex: 1;
+    }
+
+    .nav-tab {
+      padding: 1rem 1.25rem;
+      font-size: 14px;
+      cursor: pointer;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--color-text-secondary);
+      background: none;
+      font-family: inherit;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .nav-tab:hover { color: var(--color-text-primary); }
+    .nav-tab.active { color: var(--color-text-primary); border-bottom-color: var(--color-text-primary); font-weight: 500; }
+
+    .app-body { padding: 2rem; max-width: 1100px; margin: 0 auto; }
+
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    .page-title { font-size: 20px; font-weight: 500; margin-bottom: 1.5rem; }
+
+    .card {
+      background: var(--color-bg);
+      border: 0.5px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      padding: 1.25rem;
+      margin-bottom: 1rem;
+    }
+
+    .card-title {
+      font-size: 12px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--color-text-secondary);
+      margin-bottom: 1rem;
+    }
+
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+    .form-group { display: flex; flex-direction: column; gap: 5px; }
+    .form-group.full { grid-column: 1 / -1; }
+
+    label { font-size: 13px; color: var(--color-text-secondary); }
+
+    input[type="text"],
+    input[type="number"],
+    input[type="date"],
+    select,
+    textarea {
+      font-family: inherit;
+      font-size: 14px;
+      padding: 8px 10px;
+      border: 0.5px solid var(--color-border-md);
+      border-radius: var(--radius-md);
+      background: var(--color-bg);
+      color: var(--color-text-primary);
+      outline: none;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--color-text-secondary);
+      box-shadow: 0 0 0 3px rgba(0,0,0,0.06);
+    }
+
+    .btn {
+      padding: 8px 18px;
+      border-radius: var(--radius-md);
+      font-size: 14px;
+      font-family: inherit;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-primary {
+      background: var(--color-text-primary);
+      color: var(--color-bg);
+      border: none;
+    }
+    .btn-primary:hover { opacity: 0.85; }
+
+    .btn-secondary {
+      background: transparent;
+      border: 0.5px solid var(--color-border-md);
+      color: var(--color-text-primary);
+    }
+    .btn-secondary:hover { background: var(--color-bg-secondary); }
+
+    .status {
+      font-size: 13px;
+      padding: 8px 12px;
+      border-radius: var(--radius-md);
+      margin-top: 10px;
+      display: none;
+    }
+    .status.success { background: var(--color-success-bg); color: var(--color-success-text); display: block; }
+    .status.error { background: var(--color-danger-bg); color: var(--color-danger-text); display: block; }
+
+    .inner-tabs { display: flex; gap: 8px; margin-bottom: 1.5rem; }
+    .inner-tab {
+      padding: 6px 14px;
+      font-size: 13px;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      border: 0.5px solid var(--color-border);
+      background: transparent;
+      color: var(--color-text-secondary);
+      font-family: inherit;
+    }
+    .inner-tab.active {
+      background: var(--color-bg-secondary);
+      color: var(--color-text-primary);
+      font-weight: 500;
+      border-color: var(--color-border-md);
+    }
+
+    .inner-panel { display: none; }
+    .inner-panel.active { display: block; }
+
+    .list-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 0.5px solid var(--color-border);
+      font-size: 14px;
+    }
+    .list-row:last-child { border-bottom: none; }
+
+    .badge {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: var(--radius-md);
+      background: var(--color-bg-secondary);
+      color: var(--color-text-secondary);
+    }
+
+    .upload-zone {
+      border: 1px dashed var(--color-border-md);
+      border-radius: var(--radius-md);
+      padding: 2.5rem;
+      text-align: center;
+      color: var(--color-text-secondary);
+      font-size: 14px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .upload-zone:hover { background: var(--color-bg-secondary); }
+    .upload-zone i { font-size: 28px; display: block; margin-bottom: 8px; }
+
+    .placeholder {
+      color: var(--color-text-tertiary);
+      font-size: 14px;
+      padding: 2rem 0;
+      text-align: center;
+    }
+    .placeholder i { font-size: 28px; display: block; margin-bottom: 8px; }
+
+    .metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 1.5rem; }
+    .metric-card {
+      background: var(--color-bg-secondary);
+      border-radius: var(--radius-md);
+      padding: 1rem;
+    }
+    .metric-label { font-size: 13px; color: var(--color-text-secondary); margin-bottom: 6px; }
+    .metric-value { font-size: 22px; font-weight: 500; }
+  </style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="app-logo"><i class="ti ti-home-dollar"></i> Household finance</div>
+  <nav class="nav-tabs">
+    <button class="nav-tab active" onclick="showTab('dashboard', this)"><i class="ti ti-layout-dashboard"></i> Dashboard</button>
+    <button class="nav-tab" onclick="showTab('balance', this)"><i class="ti ti-scale"></i> Balance sheet</button>
+    <button class="nav-tab" onclick="showTab('cashflow', this)"><i class="ti ti-arrows-exchange"></i> Cash flow</button>
+    <button class="nav-tab" onclick="showTab('whatif', this)"><i class="ti ti-adjustments"></i> What-if</button>
+    <button class="nav-tab" onclick="showTab('admin', this)"><i class="ti ti-settings"></i> Admin</button>
+  </nav>
+</header>
+
+<main class="app-body">
+
+  <!-- Dashboard -->
+  <div id="tab-dashboard" class="panel active">
+    <div class="placeholder">
+      <i class="ti ti-layout-dashboard"></i>
+      Dashboard coming soon — add accounts and record balances via Admin first.
+    </div>
+  </div>
+
+  <!-- Balance Sheet -->
+  <div id="tab-balance" class="panel">
+    <div class="placeholder">
+      <i class="ti ti-scale"></i>
+      Balance sheet coming soon.
+    </div>
+  </div>
+
+  <!-- Cash Flow -->
+  <div id="tab-cashflow" class="panel">
+    <div class="placeholder">
+      <i class="ti ti-arrows-exchange"></i>
+      Cash flow coming soon — upload YNAB data via Admin first.
+    </div>
+  </div>
+
+  <!-- What-If -->
+  <div id="tab-whatif" class="panel">
+    <div class="placeholder">
+      <i class="ti ti-adjustments"></i>
+      What-if scenarios coming soon.
+    </div>
+  </div>
+
+  <!-- Admin -->
+  <div id="tab-admin" class="panel">
+    <div class="inner-tabs">
+      <button class="inner-tab active" onclick="showInnerTab('accounts', this)">Accounts</button>
+      <button class="inner-tab" onclick="showInnerTab('snapshot', this)">Record balances</button>
+      <button class="inner-tab" onclick="showInnerTab('ynab', this)">YNAB import</button>
+      <button class="inner-tab" onclick="showInnerTab('goals', this)">Goals</button>
+    </div>
+
+    <!-- Accounts -->
+    <div id="inner-accounts" class="inner-panel active">
+      <div class="card">
+        <div class="card-title">Add account</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Account name</label>
+            <input type="text" id="acc-name" placeholder="e.g. Chase Checking" />
+          </div>
+          <div class="form-group">
+            <label>Institution</label>
+            <input type="text" id="acc-institution" placeholder="e.g. Chase" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Type</label>
+            <select id="acc-type" onchange="autoCategory()">
+              <option value="checking">Checking</option>
+              <option value="savings">Savings</option>
+              <option value="investment">Investment / brokerage</option>
+              <option value="retirement">Retirement (401k / IRA)</option>
+              <option value="real_estate">Real estate</option>
+              <option value="mortgage">Mortgage</option>
+              <option value="credit_card">Credit card</option>
+              <option value="loan">Loan</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Category</label>
+            <select id="acc-category">
+              <option value="asset">Asset</option>
+              <option value="liability">Liability</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group full">
+            <label>Notes (optional)</label>
+            <input type="text" id="acc-notes" placeholder="Any notes about this account" />
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="addAccount()"><i class="ti ti-plus"></i> Add account</button>
+        <div id="acc-status" class="status"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Your accounts</div>
+        <div id="accounts-list"><p class="placeholder">No accounts yet.</p></div>
+      </div>
+    </div>
+
+    <!-- Record Balances -->
+    <div id="inner-snapshot" class="inner-panel">
+      <div class="card">
+        <div class="card-title">Record account balance</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Account</label>
+            <select id="snap-account"></select>
+          </div>
+          <div class="form-group">
+            <label>As-of date</label>
+            <input type="date" id="snap-date" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Balance ($)</label>
+            <input type="number" id="snap-balance" placeholder="0.00" step="0.01" />
+          </div>
+          <div class="form-group">
+            <label>Source</label>
+            <select id="snap-source">
+              <option value="manual">Manual entry</option>
+              <option value="advisor_import">Advisor portal</option>
+              <option value="ynab_import">YNAB</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="addSnapshot()"><i class="ti ti-device-floppy"></i> Save balance</button>
+        <div id="snap-status" class="status"></div>
+      </div>
+    </div>
+
+    <!-- YNAB Import -->
+    <div id="inner-ynab" class="inner-panel">
+      <div class="card">
+        <div class="card-title">YNAB import</div>
+        <p style="font-size:14px; color:var(--color-text-secondary); margin-bottom:1.25rem;">
+          Export your budget from YNAB as a CSV. The file should include columns: Month, Category Group, Category, Budgeted, Activity.
+        </p>
+        <div class="upload-zone" onclick="document.getElementById('ynab-file').click()">
+          <i class="ti ti-upload"></i>
+          Click to select YNAB CSV export
+          <input type="file" id="ynab-file" accept=".csv" style="display:none;" onchange="handleYnabUpload(event)" />
+        </div>
+        <div id="ynab-status" class="status"></div>
+        <div id="ynab-preview" style="margin-top:1rem; font-size:13px; color:var(--color-text-secondary);"></div>
+      </div>
+    </div>
+
+    <!-- Goals -->
+    <div id="inner-goals" class="inner-panel">
+      <div class="card">
+        <div class="card-title">Add goal</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Goal name</label>
+            <input type="text" id="goal-name" placeholder="e.g. Emergency fund" />
+          </div>
+          <div class="form-group">
+            <label>Target amount ($)</label>
+            <input type="number" id="goal-target" placeholder="0" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Current amount ($)</label>
+            <input type="number" id="goal-current" placeholder="0" />
+          </div>
+          <div class="form-group">
+            <label>Monthly contribution ($)</label>
+            <input type="number" id="goal-contrib" placeholder="0" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Target date (optional)</label>
+            <input type="date" id="goal-date" />
+          </div>
+          <div class="form-group">
+            <label>Notes (optional)</label>
+            <input type="text" id="goal-notes" placeholder="" />
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="addGoal()"><i class="ti ti-plus"></i> Add goal</button>
+        <div id="goal-status" class="status"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Your goals</div>
+        <div id="goals-list"><p class="placeholder">No goals yet.</p></div>
+      </div>
+    </div>
+
+  </div><!-- /admin -->
+
+</main>
+
+<script>
+  const SUPABASE_URL = 'https://ntrhptxetvdjhoqfaytl.supabase.co';
+  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50cmhwdHhldHZkamhvcWZheXRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2NTc2NDQsImV4cCI6MjA5NTIzMzY0NH0.dWpCNGNtUMAqFC3S22s-xxIUMYWyH9TnPwAhyVYuhqk';
+
+  const sbHeaders = {
+    'Content-Type': 'application/json',
+    'apikey': SUPABASE_KEY,
+    'Authorization': 'Bearer ' + SUPABASE_KEY,
+    'Prefer': 'return=minimal'
+  };
+
+  async function sb(path, method = 'GET', body = null) {
+    const opts = { method, headers: sbHeaders };
+    if (body) opts.body = JSON.stringify(body);
+    const res = await fetch(SUPABASE_URL + '/rest/v1/' + path, opts);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Request failed');
+    }
+    if (method === 'GET') return res.json();
+    return true;
+  }
+
+  function showTab(name, el) {
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('tab-' + name).classList.add('active');
+    if (name === 'admin') { loadAccounts(); loadGoals(); }
+  }
+
+  function showInnerTab(name, el) {
+    document.querySelectorAll('.inner-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.inner-panel').forEach(p => p.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('inner-' + name).classList.add('active');
+    if (name === 'snapshot') loadAccountsDropdown();
+  }
+
+  function setStatus(id, msg, type) {
+    const el = document.getElementById(id);
+    el.textContent = msg;
+    el.className = 'status ' + type;
+    if (type === 'success') setTimeout(() => el.className = 'status', 4000);
+  }
+
+  const liabilityTypes = ['mortgage', 'credit_card', 'loan'];
+  function autoCategory() {
+    const type = document.getElementById('acc-type').value;
+    document.getElementById('acc-category').value = liabilityTypes.includes(type) ? 'liability' : 'asset';
+  }
+
+  async function addAccount() {
+    const name = document.getElementById('acc-name').value.trim();
+    const institution = document.getElementById('acc-institution').value.trim();
+    const type = document.getElementById('acc-type').value;
+    const category = document.getElementById('acc-category').value;
+    const notes = document.getElementById('acc-notes').value.trim();
+    if (!name) return setStatus('acc-status', 'Account name is required.', 'error');
+    try {
+      await sb('accounts', 'POST', { name, institution, type, category, notes });
+      setStatus('acc-status', 'Account added.', 'success');
+      ['acc-name', 'acc-institution', 'acc-notes'].forEach(id => document.getElementById(id).value = '');
+      loadAccounts();
+    } catch (e) { setStatus('acc-status', 'Error: ' + e.message, 'error'); }
+  }
+
+  async function loadAccounts() {
+    try {
+      const accounts = await sb('accounts?is_active=eq.true&order=category,type,name');
+      const el = document.getElementById('accounts-list');
+      if (!accounts.length) { el.innerHTML = '<p class="placeholder">No accounts yet.</p>'; return; }
+      el.innerHTML = accounts.map(a => `
+        <div class="list-row">
+          <div>
+            <span style="font-weight:500;">${a.name}</span>
+            ${a.institution ? `<span style="color:var(--color-text-secondary); margin-left:8px; font-size:13px;">${a.institution}</span>` : ''}
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="badge">${a.type.replace(/_/g,' ')}</span>
+            <span style="font-size:12px; color:${a.category === 'asset' ? 'var(--color-success-text)' : 'var(--color-danger-text)'};">${a.category}</span>
+          </div>
+        </div>`).join('');
+    } catch (e) { console.error(e); }
+  }
+
+  async function loadAccountsDropdown() {
+    try {
+      const accounts = await sb('accounts?is_active=eq.true&order=name');
+      const sel = document.getElementById('snap-account');
+      sel.innerHTML = accounts.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+      document.getElementById('snap-date').value = new Date().toISOString().split('T')[0];
+    } catch (e) { console.error(e); }
+  }
+
+  async function addSnapshot() {
+    const account_id = document.getElementById('snap-account').value;
+    const as_of_date = document.getElementById('snap-date').value;
+    const balance = parseFloat(document.getElementById('snap-balance').value);
+    const source = document.getElementById('snap-source').value;
+    if (!as_of_date || isNaN(balance)) return setStatus('snap-status', 'Date and balance are required.', 'error');
+    try {
+      await sb('account_snapshots', 'POST', { account_id, as_of_date, balance, source });
+      setStatus('snap-status', 'Balance saved.', 'success');
+      document.getElementById('snap-balance').value = '';
+    } catch (e) { setStatus('snap-status', 'Error: ' + e.message, 'error'); }
+  }
+
+  function handleYnabUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const lines = e.target.result.split('\n').filter(l => l.trim());
+      const hdrs = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+      const rows = lines.slice(1).map(line => {
+        const vals = line.split(',').map(v => v.trim().replace(/"/g, ''));
+        return Object.fromEntries(hdrs.map((h, i) => [h, vals[i] || '']));
+      }).filter(r => r['Category'] && r['Month']);
+
+      document.getElementById('ynab-preview').textContent = `Parsed ${rows.length} rows. Uploading...`;
+
+      const records = rows.map(r => ({
+        month: new Date(r['Month'] + '-02').toISOString().split('T')[0],
+        category: r['Category'],
+        category_group: r['Category Group'] || '',
+        budgeted: parseFloat((r['Budgeted'] || '0').replace(/[$,]/g, '')) || 0,
+        actual: Math.abs(parseFloat((r['Activity'] || '0').replace(/[$,]/g, '')) || 0),
+        source: 'ynab_import'
+      }));
+
+      try {
+        for (let i = 0; i < records.length; i += 50) {
+          await sb('transactions', 'POST', records.slice(i, i + 50));
+        }
+        setStatus('ynab-status', `Imported ${records.length} transaction records.`, 'success');
+        document.getElementById('ynab-preview').textContent = '';
+      } catch (e) { setStatus('ynab-status', 'Error: ' + e.message, 'error'); }
+    };
+    reader.readAsText(file);
+  }
+
+  async function addGoal() {
+    const name = document.getElementById('goal-name').value.trim();
+    const target_amount = parseFloat(document.getElementById('goal-target').value);
+    const current_amount = parseFloat(document.getElementById('goal-current').value) || 0;
+    const monthly_contribution = parseFloat(document.getElementById('goal-contrib').value) || 0;
+    const target_date = document.getElementById('goal-date').value || null;
+    const notes = document.getElementById('goal-notes').value.trim();
+    if (!name || isNaN(target_amount)) return setStatus('goal-status', 'Name and target amount are required.', 'error');
+    try {
+      await sb('goals', 'POST', { name, target_amount, current_amount, monthly_contribution, target_date, notes });
+      setStatus('goal-status', 'Goal saved.', 'success');
+      ['goal-name','goal-target','goal-current','goal-contrib','goal-date','goal-notes'].forEach(id => document.getElementById(id).value = '');
+      loadGoals();
+    } catch (e) { setStatus('goal-status', 'Error: ' + e.message, 'error'); }
+  }
+
+  async function loadGoals() {
+    try {
+      const goals = await sb('goals?order=name');
+      const el = document.getElementById('goals-list');
+      if (!goals.length) { el.innerHTML = '<p class="placeholder">No goals yet.</p>'; return; }
+      el.innerHTML = goals.map(g => {
+        const remaining = g.target_amount - g.current_amount;
+        const months = g.monthly_contribution > 0 ? Math.ceil(remaining / g.monthly_contribution) : null;
+        return `
+          <div class="list-row">
+            <div>
+              <span style="font-weight:500;">${g.name}</span>
+              ${g.target_date ? `<span style="color:var(--color-text-secondary); margin-left:8px; font-size:13px;">by ${g.target_date}</span>` : ''}
+            </div>
+            <div style="text-align:right; font-size:13px; color:var(--color-text-secondary);">
+              $${g.current_amount.toLocaleString()} / $${g.target_amount.toLocaleString()}
+              ${months ? `<span style="margin-left:8px;">(~${months} mo)</span>` : ''}
+            </div>
+          </div>`;
+      }).join('');
+    } catch (e) { console.error(e); }
+  }
+
+  loadAccounts();
+  loadGoals();
+</script>
+</body>
+</html>
