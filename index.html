@@ -563,34 +563,79 @@
     } catch (e) { setStatus('snap-status', 'Error: ' + e.message, 'error'); }
   }
 
+  function parseCSVLine(line) {
+    const result = [];
+    let cur = '', inQuote = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') { inQuote = !inQuote; }
+      else if (ch === ',' && !inQuote) { result.push(cur.trim()); cur = ''; }
+      else { cur += ch; }
+    }
+    result.push(cur.trim());
+    return result;
+  }
+
   function handleYnabUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = async (e) => {
       const lines = e.target.result.split('\n').filter(l => l.trim());
-      const hdrs = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+      const hdrs = parseCSVLine(lines[0]);
+      const cutoff = new Date('2025-01-01');
+
       const rows = lines.slice(1).map(line => {
-        const vals = line.split(',').map(v => v.trim().replace(/"/g, ''));
+        const vals = parseCSVLine(line);
         return Object.fromEntries(hdrs.map((h, i) => [h, vals[i] || '']));
-      }).filter(r => r['Category'] && r['Month']);
+      });
 
-      document.getElementById('ynab-preview').textContent = `Parsed ${rows.length} rows. Uploading...`;
+      const skipGroups = new Set(['Inflow', 'Hidden Categories', '']);
 
-      const records = rows.map(r => ({
-        month: new Date(r['Month'] + '-02').toISOString().split('T')[0],
-        category: r['Category'],
-        category_group: r['Category Group'] || '',
-        budgeted: parseFloat((r['Budgeted'] || '0').replace(/[$,]/g, '')) || 0,
-        actual: Math.abs(parseFloat((r['Activity'] || '0').replace(/[$,]/g, '')) || 0),
+      const filtered = rows.filter(r => {
+        if (!r['Date'] || !r['Category'] || !r['Category Group']) return false;
+        if (skipGroups.has(r['Category Group'])) return false;
+        const parts = r['Date'].split('/');
+        const date = new Date(`${parts[2]}-${parts[0]}-${parts[1]}`);
+        return date >= cutoff;
+      });
+
+      const aggregated = {};
+      for (const r of filtered) {
+        const parts = r['Date'].split('/');
+        const month = `${parts[2]}-${parts[0].padStart(2,'0')}-01`;
+        const key = `${month}||${r['Category Group']}||${r['Category']}`;
+        if (!aggregated[key]) {
+          aggregated[key] = { month, category: r['Category'], category_group: r['Category Group'], outflow: 0, inflow: 0 };
+        }
+        aggregated[key].outflow += parseFloat((r['Outflow'] || '0').replace(/[$,]/g, '')) || 0;
+        aggregated[key].inflow += parseFloat((r['Inflow'] || '0').replace(/[$,]/g, '')) || 0;
+      }
+
+      const records = Object.values(aggregated).map(a => ({
+        month: a.month,
+        category: a.category,
+        category_group: a.category_group,
+        budgeted: 0,
+        actual: parseFloat((a.outflow - a.inflow).toFixed(2)),
         source: 'ynab_import'
       }));
 
+      document.getElementById('ynab-preview').textContent = `Parsed ${filtered.length} transactions → ${records.length} monthly category records. Uploading...`;
+
+      const sbUpsertHeaders = { ...sbHeaders, 'Prefer': 'resolution=merge-duplicates,return=minimal' };
+
       try {
         for (let i = 0; i < records.length; i += 50) {
-          await sb('transactions', 'POST', records.slice(i, i + 50));
+          const batch = records.slice(i, i + 50);
+          const res = await fetch(SUPABASE_URL + '/rest/v1/transactions', {
+            method: 'POST',
+            headers: sbUpsertHeaders,
+            body: JSON.stringify(batch)
+          });
+          if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.message || 'Upsert failed'); }
         }
-        setStatus('ynab-status', `Imported ${records.length} transaction records.`, 'success');
+        setStatus('ynab-status', `Imported ${records.length} monthly category records (Jan 2025 onward).`, 'success');
         document.getElementById('ynab-preview').textContent = '';
       } catch (e) { setStatus('ynab-status', 'Error: ' + e.message, 'error'); }
     };
