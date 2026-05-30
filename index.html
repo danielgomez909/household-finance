@@ -496,9 +496,9 @@
 
   function setStatus(id, msg, type) {
     const el = document.getElementById(id);
-    el.textContent = msg;
+    el.innerHTML = msg + ' <span onclick="this.parentElement.className=\'status\'" style="float:right;cursor:pointer;opacity:0.6;">✕</span>';
     el.className = 'status ' + type;
-    if (type === 'success') setTimeout(() => el.className = 'status', 4000);
+  
   }
 
   const liabilityTypes = ['mortgage', 'credit_card', 'loan'];
@@ -629,7 +629,12 @@
       const spendingCount = records.length - incomeCount;
       document.getElementById('ynab-preview').textContent = `Parsed ${filtered.length} transactions into ${spendingCount} spending + ${incomeCount} income monthly records. Uploading...`;
 
-      const sbUpsertHeaders = { ...sbHeaders, 'Prefer': 'resolution=merge-duplicates,return=minimal' };
+      const sbUpsertHeaders = {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_KEY,
+        'Prefer': 'resolution=merge-duplicates,return=minimal'
+      };
 
       try {
         for (let i = 0; i < records.length; i += 50) {
