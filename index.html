@@ -324,9 +324,47 @@
 
   <!-- What-If -->
   <div id="tab-whatif" class="panel">
-    <div class="placeholder">
-      <i class="ti ti-adjustments"></i>
-      What-if scenarios coming soon.
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:1.5rem; flex-wrap:wrap;">
+      <span style="font-size:13px; color:var(--color-text-secondary);">Baseline period:</span>
+      <div style="display:flex; gap:6px;">
+        <button class="period-btn" onclick="setWiPeriod('ytd',this)">YTD</button>
+        <button class="period-btn active" onclick="setWiPeriod('3',this)">3 months</button>
+        <button class="period-btn" onclick="setWiPeriod('6',this)">6 months</button>
+        <button class="period-btn" onclick="setWiPeriod('12',this)">12 months</button>
+      </div>
+      <span style="font-size:13px; color:var(--color-text-secondary); margin-left:1rem;">Adjust by:</span>
+      <div style="display:flex; gap:6px;">
+        <button class="period-btn active" id="wi-mode-dollar" onclick="setWiMode('dollar')">$ amount</button>
+        <button class="period-btn" id="wi-mode-pct" onclick="setWiMode('pct')">% change</button>
+      </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; margin-bottom:1.5rem;">
+      <!-- Baseline -->
+      <div class="card">
+        <div class="card-title">Baseline <span id="wi-baseline-label" style="font-weight:400; text-transform:none; font-size:12px;">(3-month avg)</span></div>
+        <div id="wi-baseline-content"><p class="placeholder" style="padding:1rem 0;">Loading...</p></div>
+      </div>
+      <!-- Scenario -->
+      <div class="card">
+        <div class="card-title">Scenario</div>
+        <div style="margin-bottom:1rem;">
+          <label style="font-size:13px; color:var(--color-text-secondary);">Scenario name</label>
+          <input type="text" id="wi-name" placeholder="e.g. New job" style="width:100%; margin-top:4px;" />
+        </div>
+        <div style="margin-bottom:1rem;">
+          <label style="font-size:13px; color:var(--color-text-secondary);">Monthly income ($)</label>
+          <input type="number" id="wi-income" placeholder="0" style="width:100%; margin-top:4px;" oninput="updateWiImpact()" />
+        </div>
+        <div class="card-title" style="margin-top:1rem;">Spending adjustments</div>
+        <div id="wi-adjustments"></div>
+      </div>
+    </div>
+
+    <!-- Impact -->
+    <div class="card">
+      <div class="card-title">Impact</div>
+      <div id="wi-impact"><p class="placeholder" style="padding:1rem 0;">Set a scenario income above to see impact.</p></div>
     </div>
   </div>
 
@@ -519,6 +557,7 @@
     document.getElementById('tab-' + name).classList.add('active');
     if (name === 'admin') { loadAccounts(); loadGoals(); }
     if (name === 'cashflow') { initCashFlow(); }
+    if (name === 'whatif') { initWhatIf(); }
   }
 
   function showInnerTab(name, el) {
@@ -964,6 +1003,224 @@
   async function initCashFlow() {
     await loadCashFlowData();
     renderCashFlow();
+  }
+
+  // ── What-If ──────────────────────────────────────────────
+  let wiPeriod = '3';
+  let wiMode = 'dollar';
+  let wiBaseline = { income: 0, groups: {} };
+  let wiData = [];
+  let wiGoals = [];
+  const WI_GROUPS = ['Bills','Frequent','Non-Monthly','Quality of Life'];
+
+  function setWiPeriod(p, el) {
+    document.querySelectorAll('#tab-whatif .period-btn').forEach(b => {
+      if (b.id && b.id.startsWith('wi-mode')) return;
+      b.classList.remove('active');
+    });
+    el.classList.add('active');
+    wiPeriod = p;
+    computeWiBaseline();
+  }
+
+  function setWiMode(m) {
+    wiMode = m;
+    document.getElementById('wi-mode-dollar').classList.toggle('active', m==='dollar');
+    document.getElementById('wi-mode-pct').classList.toggle('active', m==='pct');
+    renderWiAdjustments();
+    updateWiImpact();
+  }
+
+  function getWiMonths(allMonths) {
+    const sorted = [...allMonths].sort();
+    const now = new Date();
+    if (wiPeriod === 'ytd') { const yr = now.getFullYear(); return sorted.filter(m => m.startsWith(yr+'')); }
+    return sorted.slice(-parseInt(wiPeriod));
+  }
+
+  async function initWhatIf() {
+    wiData = await sb('transactions?source=eq.ynab_import&order=month,category_group,category');
+    wiGoals = await sb('goals?order=name');
+    computeWiBaseline();
+  }
+
+  function computeWiBaseline() {
+    const allMonths = [...new Set(wiData.map(r => r.month))].sort();
+    const months = getWiMonths(allMonths);
+    const n = months.length;
+    if (!n) return;
+
+    const labels = { ytd:'YTD avg', '3':'3-month avg', '6':'6-month avg', '12':'12-month avg' };
+    document.getElementById('wi-baseline-label').textContent = '(' + (labels[wiPeriod]||'avg') + ')';
+
+    let totalIncome = 0;
+    const groupTotals = {};
+    const catTotals = {};
+    WI_GROUPS.forEach(g => { groupTotals[g] = 0; catTotals[g] = {}; });
+
+    for (const r of wiData) {
+      if (!months.includes(r.month)) continue;
+      if (r.category_group === 'Inflow') {
+        totalIncome += r.actual;
+      } else if (WI_GROUPS.includes(r.category_group)) {
+        groupTotals[r.category_group] = (groupTotals[r.category_group]||0) + r.actual;
+        catTotals[r.category_group][r.category] = (catTotals[r.category_group][r.category]||0) + r.actual;
+      }
+    }
+
+    wiBaseline = {
+      income: totalIncome / n,
+      groups: {},
+      cats: {}
+    };
+    for (const g of WI_GROUPS) {
+      wiBaseline.groups[g] = groupTotals[g] / n;
+      wiBaseline.cats[g] = {};
+      for (const [c,v] of Object.entries(catTotals[g])) {
+        wiBaseline.cats[g][c] = v / n;
+      }
+    }
+
+    // Set income field default if empty
+    const incField = document.getElementById('wi-income');
+    if (!incField.value) incField.value = Math.round(wiBaseline.income);
+
+    renderWiBaseline();
+    renderWiAdjustments();
+    updateWiImpact();
+  }
+
+  function renderWiBaseline() {
+    const fmt = v => '$' + Math.round(v).toLocaleString();
+    const totalSpend = WI_GROUPS.reduce((a,g) => a + wiBaseline.groups[g], 0);
+    const surplus = wiBaseline.income - totalSpend;
+    let html = '';
+    html += `<div class="list-row"><span style="font-weight:500;">Income</span><span style="color:var(--color-success-text)">${fmt(wiBaseline.income)}</span></div>`;
+    for (const g of WI_GROUPS) {
+      html += `<div class="list-row"><span>${g}</span><span>${fmt(wiBaseline.groups[g])}</span></div>`;
+    }
+    html += `<div class="list-row" style="font-weight:500;"><span>Surplus / deficit</span><span style="color:${surplus>=0?'var(--color-success-text)':'var(--color-danger-text)'}">${surplus>=0?'':'-'}${fmt(Math.abs(surplus))}</span></div>`;
+    document.getElementById('wi-baseline-content').innerHTML = html;
+  }
+
+  function renderWiAdjustments() {
+    let html = '';
+    for (const g of WI_GROUPS) {
+      const base = wiBaseline.groups[g] || 0;
+      const inputId = `wi-adj-${g.replace(/\s+/g,'-')}`;
+      if (wiMode === 'dollar') {
+        html += `<div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+          <span style="flex:1; font-size:13px;">${g}</span>
+          <span style="font-size:12px; color:var(--color-text-tertiary); min-width:60px; text-align:right;">base $${Math.round(base).toLocaleString()}</span>
+          <input type="number" id="${inputId}" placeholder="0" step="10"
+            style="width:100px;" oninput="updateWiImpact()"
+            title="Enter new monthly amount (leave blank to use baseline)" />
+        </div>`;
+      } else {
+        html += `<div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+          <span style="flex:1; font-size:13px;">${g}</span>
+          <span style="font-size:12px; color:var(--color-text-tertiary); min-width:60px; text-align:right;">base $${Math.round(base).toLocaleString()}</span>
+          <div style="display:flex; align-items:center; gap:4px;">
+            <input type="number" id="${inputId}" placeholder="0" step="1" min="-100"
+              style="width:70px;" oninput="updateWiImpact()" />
+            <span style="font-size:13px; color:var(--color-text-secondary);">%</span>
+          </div>
+        </div>`;
+      }
+    }
+    document.getElementById('wi-adjustments').innerHTML = html;
+  }
+
+  function getScenarioValues() {
+    const income = parseFloat(document.getElementById('wi-income').value) || wiBaseline.income;
+    const groups = {};
+    for (const g of WI_GROUPS) {
+      const inputId = `wi-adj-${g.replace(/\s+/g,'-')}`;
+      const el = document.getElementById(inputId);
+      const val = el ? parseFloat(el.value) : NaN;
+      const base = wiBaseline.groups[g] || 0;
+      if (isNaN(val) || el.value === '') {
+        groups[g] = base;
+      } else if (wiMode === 'dollar') {
+        groups[g] = val;
+      } else {
+        groups[g] = base * (1 + val / 100);
+      }
+    }
+    return { income, groups };
+  }
+
+  function updateWiImpact() {
+    const fmt = v => '$' + Math.round(Math.abs(v)).toLocaleString();
+    const sign = v => v >= 0 ? '' : '-';
+    const color = v => v >= 0 ? 'var(--color-success-text)' : 'var(--color-danger-text)';
+
+    const scenario = getScenarioValues();
+    const baseSpend = WI_GROUPS.reduce((a,g) => a + wiBaseline.groups[g], 0);
+    const scenSpend = WI_GROUPS.reduce((a,g) => a + scenario.groups[g], 0);
+    const baseSurplus = wiBaseline.income - baseSpend;
+    const scenSurplus = scenario.income - scenSpend;
+    const delta = scenSurplus - baseSurplus;
+
+    let html = '';
+
+    // Side-by-side cash flow
+    html += `<div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:1.5rem;">
+      <div></div>
+      <div style="font-size:12px; font-weight:500; color:var(--color-text-secondary); text-align:right; padding-bottom:4px;">Baseline</div>
+      <div style="font-size:12px; font-weight:500; color:var(--color-text-secondary); text-align:right; padding-bottom:4px;">Scenario</div>`;
+
+    html += `<div style="font-size:13px;">Income</div>
+      <div style="text-align:right; font-size:13px; color:var(--color-success-text);">${fmt(wiBaseline.income)}</div>
+      <div style="text-align:right; font-size:13px; color:var(--color-success-text);">${fmt(scenario.income)}</div>`;
+
+    for (const g of WI_GROUPS) {
+      const bv = wiBaseline.groups[g];
+      const sv = scenario.groups[g];
+      const changed = Math.abs(sv - bv) > 0.5;
+      html += `<div style="font-size:13px;">${g}</div>
+        <div style="text-align:right; font-size:13px;">${fmt(bv)}</div>
+        <div style="text-align:right; font-size:13px; ${changed?'font-weight:500;':''}">${fmt(sv)}${changed ? `<span style="font-size:11px; color:${color(bv-sv)}; margin-left:4px;">${sv<bv?'▼':'▲'}${fmt(Math.abs(sv-bv))}</span>` : ''}</div>`;
+    }
+
+    html += `<div style="font-size:13px; font-weight:500; border-top:0.5px solid var(--color-border); padding-top:8px; margin-top:4px;">Surplus / deficit</div>
+      <div style="text-align:right; font-size:13px; font-weight:500; color:${color(baseSurplus)}; border-top:0.5px solid var(--color-border); padding-top:8px;">${sign(baseSurplus)}${fmt(baseSurplus)}</div>
+      <div style="text-align:right; font-size:13px; font-weight:500; color:${color(scenSurplus)}; border-top:0.5px solid var(--color-border); padding-top:8px;">${sign(scenSurplus)}${fmt(scenSurplus)}</div>`;
+
+    html += `</div>`;
+
+    // Delta summary
+    html += `<div style="background:var(--color-bg-secondary); border-radius:var(--radius-md); padding:1rem; margin-bottom:1.5rem; display:flex; align-items:center; gap:1rem;">
+      <span style="font-size:13px; color:var(--color-text-secondary);">Monthly cash flow change:</span>
+      <span style="font-size:20px; font-weight:500; color:${color(delta)}">${delta>=0?'+':'-'}${fmt(Math.abs(delta))}/mo</span>
+      <span style="font-size:13px; color:var(--color-text-secondary);">· ${delta>=0?'+':'-'}${fmt(Math.abs(delta*12))}/yr</span>
+    </div>`;
+
+    // Goal impact
+    if (wiGoals.length) {
+      html += `<div class="card-title">Goal timeline impact</div>`;
+      html += `<div style="display:grid; grid-template-columns:2fr 1fr 1fr; gap:8px; font-size:12px; color:var(--color-text-secondary); margin-bottom:6px;">
+        <div>Goal</div><div style="text-align:right;">Baseline</div><div style="text-align:right;">Scenario</div></div>`;
+      for (const g of wiGoals) {
+        const remaining = g.target_amount - g.current_amount;
+        const baseContrib = g.monthly_contribution || Math.max(0, baseSurplus * 0.5);
+        const scenContrib = g.monthly_contribution || Math.max(0, scenSurplus * 0.5);
+        const baseMo = baseContrib > 0 ? Math.ceil(remaining / baseContrib) : null;
+        const scenMo = scenContrib > 0 ? Math.ceil(remaining / scenContrib) : null;
+        const diff = baseMo && scenMo ? scenMo - baseMo : null;
+        html += `<div style="display:grid; grid-template-columns:2fr 1fr 1fr; gap:8px; font-size:13px; padding:6px 0; border-top:0.5px solid var(--color-border);">
+          <div>${g.name}<br><span style="font-size:11px; color:var(--color-text-tertiary);">$${Math.round(g.current_amount).toLocaleString()} of $${Math.round(g.target_amount).toLocaleString()}</span></div>
+          <div style="text-align:right;">${baseMo ? baseMo+'mo' : '—'}</div>
+          <div style="text-align:right; font-weight:500; color:${diff===null?'inherit':diff<=0?'var(--color-success-text)':'var(--color-danger-text)'}">
+            ${scenMo ? scenMo+'mo' : '—'}${diff!==null ? `<br><span style="font-size:11px;">${diff>0?'+':''}${diff}mo</span>` : ''}
+          </div>
+        </div>`;
+      }
+    } else {
+      html += `<p style="font-size:13px; color:var(--color-text-tertiary);">Add goals in Admin to see timeline impact.</p>`;
+    }
+
+    document.getElementById('wi-impact').innerHTML = html;
   }
 
 </script>
