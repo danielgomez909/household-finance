@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Household Finance</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -247,6 +248,28 @@
     }
     .metric-label { font-size: 13px; color: var(--color-text-secondary); margin-bottom: 6px; }
     .metric-value { font-size: 22px; font-weight: 500; }
+
+    .period-btn {
+      padding: 6px 14px; font-size: 13px; border-radius: var(--radius-md);
+      cursor: pointer; border: 0.5px solid var(--color-border); background: transparent;
+      color: var(--color-text-secondary); font-family: inherit;
+    }
+    .period-btn.active { background: var(--color-bg); color: var(--color-text-primary); font-weight:500; border-color: var(--color-border-md); }
+
+    .cf-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 600px; }
+    .cf-table th { text-align: right; padding: 8px 12px; font-weight:500; font-size:12px; color:var(--color-text-secondary); border-bottom: 0.5px solid var(--color-border); white-space:nowrap; }
+    .cf-table th:first-child { text-align:left; }
+    .cf-table td { padding: 7px 12px; text-align:right; border-bottom: 0.5px solid var(--color-border); }
+    .cf-table td:first-child { text-align:left; }
+    .cf-table tr:last-child td { border-bottom: none; }
+    .cf-row-income td { color: var(--color-success-text); font-weight:500; }
+    .cf-row-surplus td { font-weight:500; }
+    .cf-row-group td:first-child { font-weight:500; cursor:pointer; user-select:none; }
+    .cf-row-group td:first-child:hover { color: var(--color-info-text); }
+    .cf-row-category td { color: var(--color-text-secondary); font-size:12px; }
+    .cf-row-category td:first-child { padding-left: 28px; }
+    .cf-total-col { background: var(--color-bg-secondary); }
+    .cf-flag { font-size:10px; vertical-align:super; color: var(--color-info-text); margin-left:2px; }
   </style>
 </head>
 <body>
@@ -282,9 +305,20 @@
 
   <!-- Cash Flow -->
   <div id="tab-cashflow" class="panel">
-    <div class="placeholder">
-      <i class="ti ti-arrows-exchange"></i>
-      Cash flow coming soon — upload YNAB data via Admin first.
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:1.5rem; flex-wrap:wrap;">
+      <div style="display:flex; gap:6px; flex-wrap:wrap;">
+        <button class="period-btn active" onclick="setPeriod('month',this)">This month</button>
+        <button class="period-btn" onclick="setPeriod('ytd',this)">YTD</button>
+        <button class="period-btn" onclick="setPeriod('3',this)">3 months</button>
+        <button class="period-btn" onclick="setPeriod('6',this)">6 months</button>
+        <button class="period-btn" onclick="setPeriod('12',this)">12 months</button>
+      </div>
+    </div>
+    <div id="cf-chart-container" style="margin-bottom:1.5rem;">
+      <canvas id="cf-chart" height="200"></canvas>
+    </div>
+    <div id="cf-table-container" style="overflow-x:auto;">
+      <div id="cf-loading" class="placeholder"><i class="ti ti-loader"></i> Loading...</div>
     </div>
   </div>
 
@@ -395,7 +429,7 @@
       <div class="card">
         <div class="card-title">YNAB import</div>
         <p style="font-size:14px; color:var(--color-text-secondary); margin-bottom:1.25rem;">
-          Export your budget from YNAB as a CSV. The file should include columns: Month, Category Group, Category, Budgeted, Activity.
+          Export your transactions from YNAB as a CSV (All Accounts, any date range). The file should include columns: Account, Date, Payee, Category Group, Category, Outflow, Inflow.
         </p>
         <div class="upload-zone" onclick="document.getElementById('ynab-file').click()">
           <i class="ti ti-upload"></i>
@@ -484,6 +518,7 @@
     el.classList.add('active');
     document.getElementById('tab-' + name).classList.add('active');
     if (name === 'admin') { loadAccounts(); loadGoals(); }
+    if (name === 'cashflow') { initCashFlow(); }
   }
 
   function showInnerTab(name, el) {
@@ -694,6 +729,208 @@
 
   loadAccounts();
   loadGoals();
+
+  // ── Cash Flow ──────────────────────────────────────────────
+  let cfPeriod = 'month';
+  let cfData = [];
+  let cfChart = null;
+  let expandedGroups = new Set();
+
+  function setPeriod(p, el) {
+    document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+    el.classList.add('active');
+    cfPeriod = p;
+    renderCashFlow();
+  }
+
+  function getMonthsForPeriod(period, allMonths) {
+    const sorted = [...allMonths].sort();
+    const now = new Date();
+    const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+    if (period === 'month') return sorted.filter(m => m === thisMonth || sorted[sorted.length-1] === m).slice(-1);
+    if (period === 'ytd') { const yr = now.getFullYear(); return sorted.filter(m => m.startsWith(yr+'')); }
+    return sorted.slice(-parseInt(period));
+  }
+
+  function detectThreePaycheck(monthIncome) {
+    const vals = Object.values(monthIncome).filter(v => v > 0);
+    if (!vals.length) return new Set();
+    const avg = vals.reduce((a,b)=>a+b,0)/vals.length;
+    const flagged = new Set();
+    for (const [m, v] of Object.entries(monthIncome)) {
+      if (v > avg * 1.3) flagged.add(m);
+    }
+    return flagged;
+  }
+
+  async function loadCashFlowData() {
+    const rows = await sb('transactions?source=eq.ynab_import&order=month,category_group,category');
+    cfData = rows;
+  }
+
+  function renderCashFlow() {
+    if (!cfData.length) return;
+
+    const allMonths = [...new Set(cfData.map(r => r.month))].sort();
+    const months = getMonthsForPeriod(cfPeriod, allMonths);
+
+    const groups = ['Bills','Frequent','Non-Monthly','Quality of Life'];
+    const groupColors = { 'Bills':'#a32d2d','Frequent':'#185fa5','Non-Monthly':'#854f0b','Quality of Life':'#3b6d11' };
+
+    // Build lookup: month -> group -> category -> actual
+    const lookup = {};
+    const monthIncome = {};
+    for (const r of cfData) {
+      if (!months.includes(r.month)) continue;
+      if (r.category_group === 'Inflow') {
+        monthIncome[r.month] = (monthIncome[r.month]||0) + r.actual;
+      } else {
+        if (!lookup[r.month]) lookup[r.month] = {};
+        if (!lookup[r.month][r.category_group]) lookup[r.month][r.category_group] = {};
+        lookup[r.month][r.category_group][r.category] = (lookup[r.month][r.category_group][r.category]||0) + r.actual;
+      }
+    }
+
+    const threePaycheck = detectThreePaycheck(monthIncome);
+
+    // Render chart
+    renderChart(months, monthIncome, lookup, groups, groupColors);
+
+    // Render table
+    const fmtMonth = m => { const d = new Date(m+'T12:00:00'); return d.toLocaleDateString('en-US',{month:'short',year:'2-digit'}); };
+    const fmt = v => v === 0 ? '—' : '$'+Math.round(Math.abs(v)).toLocaleString();
+    const showTotal = months.length > 1;
+
+    let html = '<table class="cf-table"><thead><tr><th>Category</th>';
+    for (const m of months) {
+      html += `<th>${fmtMonth(m)}${threePaycheck.has(m)?'<span class="cf-flag" title="3 paycheck month">3✓</span>':''}</th>`;
+    }
+    if (showTotal) html += '<th class="cf-total-col">Total</th>';
+    html += '</tr></thead><tbody>';
+
+    // Income row
+    html += '<tr class="cf-row-income"><td>Income</td>';
+    let incTotal = 0;
+    for (const m of months) { const v = monthIncome[m]||0; incTotal+=v; html += `<td>${fmt(v)}</td>`; }
+    if (showTotal) html += `<td class="cf-total-col">${fmt(incTotal)}</td>`;
+    html += '</tr>';
+
+    // Spending groups
+    const groupTotals = {};
+    for (const g of groups) {
+      const catMap = {};
+      let gTotal = 0;
+      const monthTotals = months.map(m => {
+        const cats = (lookup[m]||{})[g]||{};
+        const t = Object.values(cats).reduce((a,b)=>a+b,0);
+        gTotal += t;
+        for (const [c,v] of Object.entries(cats)) catMap[c] = (catMap[c]||0)+v;
+        return t;
+      });
+      groupTotals[g] = gTotal;
+      const expanded = expandedGroups.has(g);
+      html += `<tr class="cf-row-group"><td onclick="toggleGroup('${g}')">${expanded?'▾':'▸'} ${g}</td>`;
+      for (const t of monthTotals) html += `<td>${fmt(t)}</td>`;
+      if (showTotal) html += `<td class="cf-total-col">${fmt(gTotal)}</td>`;
+      html += '</tr>';
+      if (expanded) {
+        const cats = [...new Set(cfData.filter(r=>r.category_group===g && months.includes(r.month)).map(r=>r.category))].sort();
+        for (const cat of cats) {
+          html += `<tr class="cf-row-category"><td>${cat}</td>`;
+          let cTotal = 0;
+          for (const m of months) { const v = ((lookup[m]||{})[g]||{})[cat]||0; cTotal+=v; html += `<td>${fmt(v)}</td>`; }
+          if (showTotal) html += `<td class="cf-total-col">${fmt(cTotal)}</td>`;
+          html += '</tr>';
+        }
+      }
+    }
+
+    // Surplus/deficit
+    html += '<tr class="cf-row-surplus"><td>Surplus / deficit</td>';
+    let surplusTotal = 0;
+    for (const m of months) {
+      const inc = monthIncome[m]||0;
+      const spend = groups.reduce((a,g)=>{ const cats=(lookup[m]||{})[g]||{}; return a+Object.values(cats).reduce((x,y)=>x+y,0); },0);
+      const s = inc - spend;
+      surplusTotal += s;
+      html += `<td style="color:${s>=0?'var(--color-success-text)':'var(--color-danger-text)'}">${s>=0?'':'-'}${fmt(Math.abs(s))}</td>`;
+    }
+    if (showTotal) {
+      html += `<td class="cf-total-col" style="color:${surplusTotal>=0?'var(--color-success-text)':'var(--color-danger-text)'}">${surplusTotal>=0?'':'-'}${fmt(Math.abs(surplusTotal))}</td>`;
+    }
+    html += '</tr></tbody></table>';
+    html += months.length > 1 ? '<p style="font-size:12px;color:var(--color-text-tertiary);margin-top:8px;">3✓ = three-paycheck month (income higher than usual)</p>' : '';
+
+    document.getElementById('cf-table-container').innerHTML = html;
+    document.getElementById('cf-loading').style.display = 'none';
+  }
+
+  function toggleGroup(g) {
+    if (expandedGroups.has(g)) expandedGroups.delete(g);
+    else expandedGroups.add(g);
+    renderCashFlow();
+  }
+
+  function renderChart(months, monthIncome, lookup, groups, groupColors) {
+    const fmtMonth = m => { const d = new Date(m+'T12:00:00'); return d.toLocaleDateString('en-US',{month:'short',year:'2-digit'}); };
+    const labels = months.map(fmtMonth);
+
+    const incomeDataset = {
+      label: 'Income',
+      data: months.map(m => Math.round(monthIncome[m]||0)),
+      backgroundColor: 'rgba(59,109,17,0.7)',
+      stack: 'income'
+    };
+
+    const spendDatasets = groups.map(g => ({
+      label: g,
+      data: months.map(m => {
+        const cats = (lookup[m]||{})[g]||{};
+        return -Math.round(Object.values(cats).reduce((a,b)=>a+b,0));
+      }),
+      backgroundColor: groupColors[g]+'bb',
+      stack: 'spending'
+    }));
+
+    const netData = months.map(m => {
+      const inc = monthIncome[m]||0;
+      const spend = groups.reduce((a,g)=>{ const cats=(lookup[m]||{})[g]||{}; return a+Object.values(cats).reduce((x,y)=>x+y,0); },0);
+      return Math.round(inc - spend);
+    });
+
+    const netDataset = {
+      label: 'Net',
+      data: netData,
+      type: 'line',
+      borderColor: '#534ab7',
+      backgroundColor: '#534ab7',
+      borderWidth: 2,
+      pointRadius: 4,
+      tension: 0.3,
+      yAxisID: 'y'
+    };
+
+    const ctx = document.getElementById('cf-chart').getContext('2d');
+    if (cfChart) cfChart.destroy();
+    cfChart = new Chart(ctx, {
+      type: 'bar',
+      data: { labels, datasets: [incomeDataset, ...spendDatasets, netDataset] },
+      options: {
+        responsive: true,
+        plugins: { legend: { position: 'bottom', labels: { font: { size: 12 }, boxWidth: 12 } } },
+        scales: {
+          x: { grid: { display: false } },
+          y: { grid: { color: 'rgba(0,0,0,0.06)' }, ticks: { callback: v => '$'+Math.abs(v/1000).toFixed(0)+'k' } }
+        }
+      }
+    });
+  }
+
+  async function initCashFlow() {
+    await loadCashFlowData();
+    renderCashFlow();
+  }
+
 </script>
 </body>
 </html>
