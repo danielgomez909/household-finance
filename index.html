@@ -315,7 +315,7 @@
       </div>
     </div>
     <div id="cf-chart-container" style="margin-bottom:1.5rem;">
-      <canvas id="cf-chart" height="200"></canvas>
+      <canvas id="cf-chart" height="120"></canvas>
     </div>
     <div id="cf-table-container" style="overflow-x:auto;">
       <div id="cf-loading" class="placeholder"><i class="ti ti-loader"></i> Loading...</div>
@@ -640,10 +640,16 @@
         const parts = r['Date'].split('/');
         const month = `${parts[2]}-${parts[0].padStart(2,'0')}-01`;
         const group = r['Category Group'];
-        const category = r['Category'] || group;
+        const isInflow = group === 'Inflow';
+        const payee = (r['Payee'] || '').toUpperCase();
+        const isSlalom = isInflow && payee.includes('SLALOM');
+        const payeeTag = isInflow ? (isSlalom ? 'slalom' : 'other') : null;
+        const category = isInflow
+          ? (isSlalom ? 'Slalom' : 'Other income')
+          : (r['Category'] || group);
         const key = `${month}||${group}||${category}`;
         if (!aggregated[key]) {
-          aggregated[key] = { month, category, category_group: group, outflow: 0, inflow: 0 };
+          aggregated[key] = { month, category, category_group: group, payee_tag: payeeTag, outflow: 0, inflow: 0 };
         }
         aggregated[key].outflow += parseFloat((r['Outflow'] || '0').replace(/[$,]/g, '')) || 0;
         aggregated[key].inflow += parseFloat((r['Inflow'] || '0').replace(/[$,]/g, '')) || 0;
@@ -657,6 +663,7 @@
         actual: a.category_group === 'Inflow'
           ? parseFloat((a.inflow - a.outflow).toFixed(2))
           : parseFloat((a.outflow - a.inflow).toFixed(2)),
+        payee_tag: a.payee_tag || null,
         source: 'ynab_import'
       }));
 
@@ -778,12 +785,16 @@
     const groupColors = { 'Bills':'#a32d2d','Frequent':'#185fa5','Non-Monthly':'#854f0b','Quality of Life':'#3b6d11' };
 
     // Build lookup: month -> group -> category -> actual
+    // For Inflow, track by category (Slalom / Other income)
     const lookup = {};
     const monthIncome = {};
+    const incomeCats = {}; // month -> category -> actual
     for (const r of cfData) {
       if (!months.includes(r.month)) continue;
       if (r.category_group === 'Inflow') {
         monthIncome[r.month] = (monthIncome[r.month]||0) + r.actual;
+        if (!incomeCats[r.month]) incomeCats[r.month] = {};
+        incomeCats[r.month][r.category] = (incomeCats[r.month][r.category]||0) + r.actual;
       } else {
         if (!lookup[r.month]) lookup[r.month] = {};
         if (!lookup[r.month][r.category_group]) lookup[r.month][r.category_group] = {};
@@ -792,54 +803,75 @@
     }
 
     const threePaycheck = detectThreePaycheck(monthIncome);
+    const hasOtherIncome = months.some(m => incomeCats[m] && incomeCats[m]['Other income']);
 
     // Render chart
     renderChart(months, monthIncome, lookup, groups, groupColors);
 
-    // Render table
+    // Table helpers
     const fmtMonth = m => { const d = new Date(m+'T12:00:00'); return d.toLocaleDateString('en-US',{month:'short',year:'2-digit'}); };
     const fmt = v => v === 0 ? '—' : '$'+Math.round(Math.abs(v)).toLocaleString();
     const showTotal = months.length > 1;
+    const showAvg = months.length > 1;
+    const n = months.length;
 
+    // Header
     let html = '<table class="cf-table"><thead><tr><th>Category</th>';
     for (const m of months) {
-      html += `<th>${fmtMonth(m)}${threePaycheck.has(m)?'<span class="cf-flag" title="3 paycheck month">3✓</span>':''}</th>`;
+      let flags = '';
+      if (threePaycheck.has(m)) flags += '<span class="cf-flag" title="3-paycheck month">3✓</span>';
+      if (months.some(mx => incomeCats[mx] && incomeCats[mx]['Other income']) && incomeCats[m] && incomeCats[m]['Other income'])
+        flags += '<span class="cf-flag" title="Non-Slalom income this month">★</span>';
+      html += `<th>${fmtMonth(m)}${flags}</th>`;
     }
     if (showTotal) html += '<th class="cf-total-col">Total</th>';
+    if (showAvg) html += '<th class="cf-total-col">Avg/mo</th>';
     html += '</tr></thead><tbody>';
 
-    // Income row
-    html += '<tr class="cf-row-income"><td>Income</td>';
+    // Income row (expandable)
+    const incExpanded = expandedGroups.has('__income__');
+    html += `<tr class="cf-row-income"><td onclick="toggleGroup('__income__')" style="cursor:pointer">${incExpanded?'▾':'▸'} Income</td>`;
     let incTotal = 0;
     for (const m of months) { const v = monthIncome[m]||0; incTotal+=v; html += `<td>${fmt(v)}</td>`; }
     if (showTotal) html += `<td class="cf-total-col">${fmt(incTotal)}</td>`;
+    if (showAvg) html += `<td class="cf-total-col">${fmt(incTotal/n)}</td>`;
     html += '</tr>';
 
+    if (incExpanded) {
+      const allIncCats = [...new Set(cfData.filter(r=>r.category_group==='Inflow'&&months.includes(r.month)).map(r=>r.category))].sort();
+      for (const cat of allIncCats) {
+        html += `<tr class="cf-row-category"><td>${cat}</td>`;
+        let cTotal = 0;
+        for (const m of months) { const v = (incomeCats[m]||{})[cat]||0; cTotal+=v; html += `<td>${fmt(v)}</td>`; }
+        if (showTotal) html += `<td class="cf-total-col">${fmt(cTotal)}</td>`;
+        if (showAvg) html += `<td class="cf-total-col">${fmt(cTotal/n)}</td>`;
+        html += '</tr>';
+      }
+    }
+
     // Spending groups
-    const groupTotals = {};
     for (const g of groups) {
-      const catMap = {};
       let gTotal = 0;
       const monthTotals = months.map(m => {
         const cats = (lookup[m]||{})[g]||{};
         const t = Object.values(cats).reduce((a,b)=>a+b,0);
         gTotal += t;
-        for (const [c,v] of Object.entries(cats)) catMap[c] = (catMap[c]||0)+v;
         return t;
       });
-      groupTotals[g] = gTotal;
       const expanded = expandedGroups.has(g);
       html += `<tr class="cf-row-group"><td onclick="toggleGroup('${g}')">${expanded?'▾':'▸'} ${g}</td>`;
       for (const t of monthTotals) html += `<td>${fmt(t)}</td>`;
       if (showTotal) html += `<td class="cf-total-col">${fmt(gTotal)}</td>`;
+      if (showAvg) html += `<td class="cf-total-col">${fmt(gTotal/n)}</td>`;
       html += '</tr>';
       if (expanded) {
-        const cats = [...new Set(cfData.filter(r=>r.category_group===g && months.includes(r.month)).map(r=>r.category))].sort();
+        const cats = [...new Set(cfData.filter(r=>r.category_group===g&&months.includes(r.month)).map(r=>r.category))].sort();
         for (const cat of cats) {
           html += `<tr class="cf-row-category"><td>${cat}</td>`;
           let cTotal = 0;
           for (const m of months) { const v = ((lookup[m]||{})[g]||{})[cat]||0; cTotal+=v; html += `<td>${fmt(v)}</td>`; }
           if (showTotal) html += `<td class="cf-total-col">${fmt(cTotal)}</td>`;
+          if (showAvg) html += `<td class="cf-total-col">${fmt(cTotal/n)}</td>`;
           html += '</tr>';
         }
       }
@@ -855,11 +887,14 @@
       surplusTotal += s;
       html += `<td style="color:${s>=0?'var(--color-success-text)':'var(--color-danger-text)'}">${s>=0?'':'-'}${fmt(Math.abs(s))}</td>`;
     }
-    if (showTotal) {
-      html += `<td class="cf-total-col" style="color:${surplusTotal>=0?'var(--color-success-text)':'var(--color-danger-text)'}">${surplusTotal>=0?'':'-'}${fmt(Math.abs(surplusTotal))}</td>`;
-    }
+    if (showTotal) html += `<td class="cf-total-col" style="color:${surplusTotal>=0?'var(--color-success-text)':'var(--color-danger-text)'}">${surplusTotal>=0?'':'-'}${fmt(Math.abs(surplusTotal))}</td>`;
+    if (showAvg) { const sa=surplusTotal/n; html += `<td class="cf-total-col" style="color:${sa>=0?'var(--color-success-text)':'var(--color-danger-text)'}">${sa>=0?'':'-'}${fmt(Math.abs(sa))}</td>`; }
     html += '</tr></tbody></table>';
-    html += months.length > 1 ? '<p style="font-size:12px;color:var(--color-text-tertiary);margin-top:8px;">3✓ = three-paycheck month (income higher than usual)</p>' : '';
+
+    let legend = [];
+    if (months.length > 1) legend.push('3✓ = three-paycheck month');
+    if (hasOtherIncome) legend.push('★ = non-Slalom income');
+    if (legend.length) html += `<p style="font-size:12px;color:var(--color-text-tertiary);margin-top:8px;">${legend.join(' · ')}</p>`;
 
     document.getElementById('cf-table-container').innerHTML = html;
     document.getElementById('cf-loading').style.display = 'none';
