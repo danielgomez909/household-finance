@@ -281,6 +281,7 @@
     <button class="nav-tab" onclick="showTab('balance', this)"><i class="ti ti-scale"></i> Balance sheet</button>
     <button class="nav-tab" onclick="showTab('cashflow', this)"><i class="ti ti-arrows-exchange"></i> Cash flow</button>
     <button class="nav-tab" onclick="showTab('whatif', this)"><i class="ti ti-adjustments"></i> What-if</button>
+    <button class="nav-tab" onclick="showTab('plan', this)"><i class="ti ti-chart-bar"></i> Plan</button>
     <button class="nav-tab" onclick="showTab('admin', this)"><i class="ti ti-settings"></i> Admin</button>
   </nav>
 </header>
@@ -368,12 +369,58 @@
     </div>
   </div>
 
+  <!-- Plan -->
+  <div id="tab-plan" class="panel">
+    <div class="inner-tabs" style="margin-bottom:1.5rem;">
+      <button class="inner-tab active" onclick="showPlanView('volatility',this)">Envelope volatility</button>
+      <button class="inner-tab" onclick="showPlanView('vsactual',this)">Plan vs actual</button>
+      <button class="inner-tab" onclick="showPlanView('forward',this)">Forward plan</button>
+    </div>
+
+    <!-- Volatility view -->
+    <div id="plan-volatility" class="inner-panel active">
+      <div style="display:flex; align-items:center; gap:16px; margin-bottom:1.25rem; flex-wrap:wrap;">
+        <span style="font-size:13px; color:var(--color-text-secondary);">Flag threshold:</span>
+        <input type="range" id="vol-threshold" min="5" max="50" value="20" step="5" style="width:140px;" oninput="document.getElementById('vol-threshold-val').textContent=this.value+'%'; renderVolatility();" />
+        <span id="vol-threshold-val" style="font-size:13px; font-weight:500; min-width:36px;">20%</span>
+        <span style="font-size:13px; color:var(--color-text-secondary); margin-left:1rem;">Period:</span>
+        <div style="display:flex; gap:6px;">
+          <button class="period-btn" onclick="setPlanPeriod('ytd',this)">YTD</button>
+          <button class="period-btn active" onclick="setPlanPeriod('6',this)">6 months</button>
+          <button class="period-btn" onclick="setPlanPeriod('12',this)">12 months</button>
+        </div>
+      </div>
+      <div id="vol-content"><p class="placeholder"><i class="ti ti-loader"></i> Loading...</p></div>
+    </div>
+
+    <!-- Plan vs Actual view -->
+    <div id="plan-vsactual" class="inner-panel">
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom:1.25rem; flex-wrap:wrap;">
+        <span style="font-size:13px; color:var(--color-text-secondary);">Period:</span>
+        <div style="display:flex; gap:6px;">
+          <button class="period-btn active" onclick="setPlanPeriod('ytd',this)">YTD</button>
+          <button class="period-btn" onclick="setPlanPeriod('3',this)">3 months</button>
+          <button class="period-btn" onclick="setPlanPeriod('6',this)">6 months</button>
+          <button class="period-btn" onclick="setPlanPeriod('12',this)">12 months</button>
+        </div>
+      </div>
+      <div id="pva-content"><p class="placeholder"><i class="ti ti-loader"></i> Loading...</p></div>
+    </div>
+
+    <!-- Forward plan view -->
+    <div id="plan-forward" class="inner-panel">
+      <div id="fwd-content"><p class="placeholder"><i class="ti ti-loader"></i> Loading...</p></div>
+    </div>
+  </div>
+
   <!-- Admin -->
   <div id="tab-admin" class="panel">
     <div class="inner-tabs">
       <button class="inner-tab active" onclick="showInnerTab('accounts', this)">Accounts</button>
       <button class="inner-tab" onclick="showInnerTab('snapshot', this)">Record balances</button>
       <button class="inner-tab" onclick="showInnerTab('ynab', this)">YNAB import</button>
+      <button class="inner-tab" onclick="showInnerTab('plan-import', this)">Plan import</button>
+      <button class="inner-tab" onclick="showInnerTab('targets', this)">Envelope targets</button>
       <button class="inner-tab" onclick="showInnerTab('goals', this)">Goals</button>
     </div>
 
@@ -479,6 +526,44 @@
       </div>
     </div>
 
+    <!-- Plan Import -->
+    <div id="inner-plan-import" class="inner-panel">
+      <div class="card">
+        <div class="card-title">Plan import (YNAB export)</div>
+        <p style="font-size:14px; color:var(--color-text-secondary); margin-bottom:1.25rem;">
+          Export your budget from YNAB — this produces two files. Upload the <strong>Register</strong> file (actuals) and the <strong>Plan</strong> file (assigned amounts) separately below. Both will replace previous imports.
+        </p>
+        <div style="margin-bottom:1rem;">
+          <div class="card-title">Register file (actuals)</div>
+          <div class="upload-zone" onclick="document.getElementById('register-file').click()">
+            <i class="ti ti-upload"></i>
+            Click to select Register CSV
+            <input type="file" id="register-file" accept=".csv" style="display:none;" onchange="handleRegisterUpload(event)" />
+          </div>
+          <div id="register-status" class="status"></div>
+        </div>
+        <div>
+          <div class="card-title">Plan file (assigned amounts)</div>
+          <div class="upload-zone" onclick="document.getElementById('plan-file').click()">
+            <i class="ti ti-upload"></i>
+            Click to select Plan CSV
+            <input type="file" id="plan-file" accept=".csv" style="display:none;" onchange="handlePlanUpload(event)" />
+          </div>
+          <div id="plan-status" class="status"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Envelope Targets -->
+    <div id="inner-targets" class="inner-panel">
+      <div class="card">
+        <div class="card-title">Envelope targets</div>
+        <p style="font-size:14px; color:var(--color-text-secondary); margin-bottom:1rem;">Set the desired monthly target for each envelope. These are loaded from your imported categories — enter the amount you want to cap spending at each month.</p>
+        <div id="targets-list"><p class="placeholder">Import a Plan file first to populate categories.</p></div>
+        <div id="targets-status" class="status"></div>
+      </div>
+    </div>
+
     <!-- Goals -->
     <div id="inner-goals" class="inner-panel">
       <div class="card">
@@ -558,6 +643,7 @@
     if (name === 'admin') { loadAccounts(); loadGoals(); }
     if (name === 'cashflow') { initCashFlow(); }
     if (name === 'whatif') { initWhatIf(); }
+    if (name === 'plan') { initPlan(); }
   }
 
   function showInnerTab(name, el) {
@@ -566,6 +652,7 @@
     el.classList.add('active');
     document.getElementById('inner-' + name).classList.add('active');
     if (name === 'snapshot') loadAccountsDropdown();
+    if (name === 'targets') loadEnvelopeTargets();
   }
 
   function setStatus(id, msg, type) {
@@ -1221,6 +1308,395 @@
     }
 
     document.getElementById('wi-impact').innerHTML = html;
+  }
+
+  // ── Plan Tab ──────────────────────────────────────────────
+  let planData = [];      // from plans table (assigned)
+  let planActuals = [];   // from transactions table
+  let planTargets = [];   // from envelope_targets table
+  let planPeriod = '6';
+  let planView = 'volatility';
+  const PLAN_GROUPS = ['Bills','Frequent','Non-Monthly','Quality of Life','Goals','Savings'];
+
+  function showPlanView(view, el) {
+    document.querySelectorAll('#tab-plan .inner-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('#tab-plan .inner-panel').forEach(p => p.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('plan-' + view).classList.add('active');
+    planView = view;
+    if (view === 'volatility') renderVolatility();
+    if (view === 'vsactual') renderPlanVsActual();
+    if (view === 'forward') renderForwardPlan();
+  }
+
+  function setPlanPeriod(p, el) {
+    const parent = el.closest('.inner-panel');
+    parent.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+    el.classList.add('active');
+    planPeriod = p;
+    if (planView === 'volatility') renderVolatility();
+    if (planView === 'vsactual') renderPlanVsActual();
+  }
+
+  async function initPlan() {
+    planData = await sb('plans?order=month,category_group,category');
+    planActuals = await sb('transactions?source=eq.ynab_import&order=month,category_group,category');
+    planTargets = await sb('envelope_targets?order=category_group,category');
+    renderVolatility();
+  }
+
+  function getPlanMonths(allMonths, period) {
+    const sorted = [...allMonths].sort();
+    const now = new Date();
+    if (period === 'ytd') { const yr = now.getFullYear(); return sorted.filter(m => m.startsWith(yr+'')); }
+    return sorted.slice(-parseInt(period));
+  }
+
+  function renderVolatility() {
+    const threshold = parseInt(document.getElementById('vol-threshold')?.value || 20) / 100;
+    const allMonths = [...new Set(planData.map(r => r.month))].sort();
+    const now = new Date();
+    const pastMonths = allMonths.filter(m => new Date(m+'T12:00:00') <= now);
+    const months = getPlanMonths(pastMonths, planPeriod);
+    if (!months.length) { document.getElementById('vol-content').innerHTML = '<p class="placeholder">No plan data for this period.</p>'; return; }
+
+    const fmtMonth = m => new Date(m+'T12:00:00').toLocaleDateString('en-US',{month:'short',year:'2-digit'});
+    const fmt = v => '$'+Math.round(v).toLocaleString();
+
+    // Build: category -> month -> assigned
+    const catMonthAssigned = {};
+    for (const r of planData) {
+      if (!months.includes(r.month)) continue;
+      if (!PLAN_GROUPS.includes(r.category_group)) continue;
+      const key = r.category_group + '||' + r.category;
+      if (!catMonthAssigned[key]) catMonthAssigned[key] = { group: r.category_group, category: r.category, months: {} };
+      catMonthAssigned[key].months[r.month] = (catMonthAssigned[key].months[r.month]||0) + r.assigned;
+    }
+
+    // Build target lookup
+    const targetLookup = {};
+    for (const t of planTargets) targetLookup[t.category_group+'||'+t.category] = t.monthly_target;
+
+    // Compute volatility: std dev / mean of assigned values
+    const rows = [];
+    for (const [key, data] of Object.entries(catMonthAssigned)) {
+      const vals = months.map(m => data.months[m]||0);
+      const nonZero = vals.filter(v => v > 0);
+      if (nonZero.length < 2) continue;
+      const mean = nonZero.reduce((a,b)=>a+b,0)/nonZero.length;
+      if (mean < 10) continue;
+      const variance = nonZero.reduce((a,b)=>a+(b-mean)**2,0)/nonZero.length;
+      const cv = Math.sqrt(variance)/mean; // coefficient of variation
+      const target = targetLookup[key] || null;
+      rows.push({ ...data, vals, mean, cv, target, flagged: cv > threshold });
+    }
+    rows.sort((a,b) => b.cv - a.cv);
+
+    const flagged = rows.filter(r => r.flagged);
+    const stable = rows.filter(r => !r.flagged);
+
+    let html = '';
+    if (flagged.length) {
+      html += `<div style="font-size:13px; font-weight:500; color:var(--color-danger-text); margin-bottom:8px;"><i class="ti ti-alert-triangle"></i> ${flagged.length} envelope${flagged.length>1?'s':''} with high variability (>${Math.round(threshold*100)}% CV)</div>`;
+    }
+
+    const renderRows = (rowList, showAll) => {
+      let t = `<table class="cf-table" style="margin-bottom:1.5rem;"><thead><tr>
+        <th>Category</th><th>Target</th>`;
+      for (const m of months) t += `<th>${fmtMonth(m)}</th>`;
+      t += `<th>Avg</th><th>Variability</th></tr></thead><tbody>`;
+      let lastGroup = '';
+      for (const r of rowList) {
+        if (r.group !== lastGroup) {
+          t += `<tr style="background:var(--color-bg-secondary);"><td colspan="${months.length+4}" style="font-size:11px; font-weight:500; text-transform:uppercase; letter-spacing:0.05em; color:var(--color-text-secondary); padding:6px 12px;">${r.group}</td></tr>`;
+          lastGroup = r.group;
+        }
+        const cvPct = Math.round(r.cv*100);
+        const color = r.flagged ? 'var(--color-danger-text)' : 'var(--color-success-text)';
+        t += `<tr class="cf-row-category"><td style="padding-left:12px;">${r.category}</td>`;
+        t += `<td>${r.target ? fmt(r.target) : '—'}</td>`;
+        for (const v of r.vals) {
+          const overTarget = r.target && v > r.target * 1.1;
+          t += `<td style="${overTarget?'color:var(--color-danger-text);font-weight:500;':''}">${v>0?fmt(v):'—'}</td>`;
+        }
+        t += `<td>${fmt(r.mean)}</td>`;
+        t += `<td style="color:${color}; font-weight:500;">${cvPct}%</td></tr>`;
+      }
+      t += '</tbody></table>';
+      return t;
+    };
+
+    if (flagged.length) html += renderRows(flagged, true);
+    html += `<div style="font-size:13px; font-weight:500; color:var(--color-text-secondary); margin-bottom:8px;">${stable.length} stable envelopes</div>`;
+    html += renderRows(stable, false);
+    html += '<p style="font-size:12px;color:var(--color-text-tertiary);margin-top:4px;">CV = coefficient of variation (std dev / mean). Higher = more variable assigned amounts month to month.</p>';
+    document.getElementById('vol-content').innerHTML = html;
+  }
+
+  function renderPlanVsActual() {
+    const allMonths = [...new Set(planData.map(r => r.month))].sort();
+    const now = new Date();
+    const pastMonths = allMonths.filter(m => new Date(m+'T12:00:00') <= now);
+    const months = getPlanMonths(pastMonths, planPeriod);
+    if (!months.length) { document.getElementById('pva-content').innerHTML = '<p class="placeholder">No plan data for this period.</p>'; return; }
+
+    const fmtMonth = m => new Date(m+'T12:00:00').toLocaleDateString('en-US',{month:'short',year:'2-digit'});
+    const fmt = v => v===0?'—':'$'+Math.round(Math.abs(v)).toLocaleString();
+
+    // Build lookups
+    const assigned = {}; // month||group||cat -> value
+    for (const r of planData) {
+      if (!months.includes(r.month)) continue;
+      assigned[r.month+'||'+r.category_group+'||'+r.category] = r.assigned;
+    }
+    const actual = {}; // month||group||cat -> value
+    for (const r of planActuals) {
+      if (!months.includes(r.month) || r.category_group==='Inflow') continue;
+      actual[r.month+'||'+r.category_group+'||'+r.category] = r.actual;
+    }
+    const targetLookup = {};
+    for (const t of planTargets) targetLookup[t.category_group+'||'+t.category] = t.monthly_target;
+
+    // Get all categories that appear in either
+    const catKeys = new Set([...Object.keys(assigned).map(k=>k.split('||').slice(1).join('||')), ...Object.keys(actual).map(k=>k.split('||').slice(1).join('||'))]);
+    const cats = [...catKeys].map(k => { const [g,c]=k.split('||'); return {group:g,category:c}; }).filter(c=>PLAN_GROUPS.includes(c.group)).sort((a,b)=>a.group.localeCompare(b.group)||a.category.localeCompare(b.category));
+
+    let html = `<table class="cf-table"><thead><tr><th>Category</th><th>Target</th>`;
+    for (const m of months) html += `<th colspan="2" style="text-align:center; border-left:0.5px solid var(--color-border);">${fmtMonth(m)}</th>`;
+    html += '</tr><tr><th></th><th></th>';
+    for (const m of months) html += '<th style="color:var(--color-text-secondary);font-size:11px;border-left:0.5px solid var(--color-border);">Assigned</th><th style="color:var(--color-text-secondary);font-size:11px;">Actual</th>';
+    html += '</tr></thead><tbody>';
+
+    let lastGroup = '';
+    for (const c of cats) {
+      if (c.group !== lastGroup) {
+        html += `<tr style="background:var(--color-bg-secondary);"><td colspan="${months.length*2+2}" style="font-size:11px; font-weight:500; text-transform:uppercase; letter-spacing:0.05em; color:var(--color-text-secondary); padding:6px 12px;">${c.group}</td></tr>`;
+        lastGroup = c.group;
+      }
+      const tgt = targetLookup[c.group+'||'+c.category];
+      html += `<tr class="cf-row-category"><td style="padding-left:12px;">${c.category}</td><td>${tgt?'$'+Math.round(tgt).toLocaleString():'—'}</td>`;
+      for (const m of months) {
+        const a = assigned[m+'||'+c.group+'||'+c.category]||0;
+        const act = actual[m+'||'+c.group+'||'+c.category]||0;
+        const overTarget = tgt && act > tgt * 1.05;
+        const overAssigned = act > a * 1.05 && a > 0;
+        html += `<td style="border-left:0.5px solid var(--color-border);">${a>0?fmt(a):'—'}</td>`;
+        html += `<td style="${overTarget||overAssigned?'color:var(--color-danger-text);font-weight:500;':''}">${act>0?fmt(act):'—'}</td>`;
+      }
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+    html += '<p style="font-size:12px;color:var(--color-text-tertiary);margin-top:8px;"><span style="color:var(--color-danger-text);">Red actual</span> = exceeds target or assigned amount.</p>';
+    document.getElementById('pva-content').innerHTML = html;
+  }
+
+  function renderForwardPlan() {
+    const now = new Date();
+    const futureMonths = [...new Set(planData.map(r => r.month))].filter(m => new Date(m+'T12:00:00') > now).sort();
+    if (!futureMonths.length) { document.getElementById('fwd-content').innerHTML = '<p class="placeholder">No future plan data found. YNAB only shows future assigned amounts once you assign dollars to future months.</p>'; return; }
+
+    const fmtMonth = m => new Date(m+'T12:00:00').toLocaleDateString('en-US',{month:'long',year:'numeric'});
+    const fmt = v => v===0?'—':'$'+Math.round(v).toLocaleString();
+    const targetLookup = {};
+    for (const t of planTargets) targetLookup[t.category_group+'||'+t.category] = t.monthly_target;
+
+    // Build: group -> category -> month -> assigned
+    const lookup = {};
+    for (const r of planData) {
+      if (!futureMonths.includes(r.month) || !PLAN_GROUPS.includes(r.category_group)) continue;
+      if (!lookup[r.category_group]) lookup[r.category_group] = {};
+      if (!lookup[r.category_group][r.category]) lookup[r.category_group][r.category] = {};
+      lookup[r.category_group][r.category][r.month] = r.assigned;
+    }
+
+    let html = `<table class="cf-table"><thead><tr><th>Category</th><th>Target</th>`;
+    for (const m of futureMonths) html += `<th>${fmtMonth(m)}</th>`;
+    html += '</tr></thead><tbody>';
+
+    for (const g of PLAN_GROUPS) {
+      if (!lookup[g]) continue;
+      html += `<tr style="background:var(--color-bg-secondary);"><td colspan="${futureMonths.length+2}" style="font-size:11px; font-weight:500; text-transform:uppercase; letter-spacing:0.05em; color:var(--color-text-secondary); padding:6px 12px;">${g}</td></tr>`;
+      for (const [cat, monthVals] of Object.entries(lookup[g]).sort()) {
+        const tgt = targetLookup[g+'||'+cat];
+        html += `<tr class="cf-row-category"><td style="padding-left:12px;">${cat}</td><td>${tgt?'$'+Math.round(tgt).toLocaleString():'—'}</td>`;
+        for (const m of futureMonths) {
+          const v = monthVals[m]||0;
+          const underFunded = tgt && v < tgt * 0.9;
+          html += `<td style="${underFunded?'color:var(--color-info-text);':''}">${v>0?fmt(v):'—'}</td>`;
+        }
+        html += '</tr>';
+      }
+    }
+    html += '</tbody></table>';
+    html += '<p style="font-size:12px;color:var(--color-text-tertiary);margin-top:8px;"><span style="color:var(--color-info-text);">Blue</span> = assigned is below target for that month.</p>';
+    document.getElementById('fwd-content').innerHTML = html;
+  }
+
+  // Plan file import
+  async function handlePlanUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const lines = e.target.result.split('\n').filter(l => l.trim());
+      const hdrs = parseCSVLine(lines[0]);
+      const cutoff = new Date('2025-01-01');
+      const skipGroups = new Set(['Hidden Categories','Credit Card Payments','']);
+
+      const rows = lines.slice(1).map(line => {
+        const vals = parseCSVLine(line);
+        return Object.fromEntries(hdrs.map((h,i) => [h, vals[i]||'']));
+      }).filter(r => {
+        if (!r['Month'] || !r['Category Group']) return false;
+        if (skipGroups.has(r['Category Group'])) return false;
+        const d = new Date(r['Month'].replace(/(\w+ )(\d+)/,'$2-$1-01'));
+        const parts = r['Month'].split(' ');
+        const monthMap = {Jan:'01',Feb:'02',Mar:'03',Apr:'04',May:'05',Jun:'06',Jul:'07',Aug:'08',Sep:'09',Oct:'10',Nov:'11',Dec:'12'};
+        const iso = `${parts[1]}-${monthMap[parts[0]]}-01`;
+        r._iso = iso;
+        return new Date(iso) >= cutoff;
+      });
+
+      const records = rows.map(r => ({
+        month: r._iso,
+        category: r['Category'],
+        category_group: r['Category Group'],
+        assigned: parseFloat((r['Assigned']||'0').replace(/[$,]/g,'')) || 0,
+        source: 'ynab_plan_import'
+      })).filter(r => r.category);
+
+      const upsertHdrs = { 'Content-Type':'application/json', 'apikey':SUPABASE_KEY, 'Authorization':'Bearer '+SUPABASE_KEY, 'Prefer':'resolution=merge-duplicates,return=minimal' };
+      try {
+        // Clear old and re-insert
+        await fetch(SUPABASE_URL+'/rest/v1/plans?source=eq.ynab_plan_import', { method:'DELETE', headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY} });
+        for (let i=0;i<records.length;i+=50) {
+          const res = await fetch(SUPABASE_URL+'/rest/v1/plans', { method:'POST', headers:upsertHdrs, body:JSON.stringify(records.slice(i,i+50)) });
+          if (!res.ok) { const err=await res.json().catch(()=>({})); throw new Error(err.message||'Failed'); }
+        }
+        setStatus('plan-status', `Imported ${records.length} plan records (Jan 2025 onward).`, 'success');
+        // Auto-populate envelope_targets with categories that don't have targets yet
+        await populateTargetsFromPlan(records);
+      } catch(e) { setStatus('plan-status', 'Error: '+e.message, 'error'); }
+    };
+    reader.readAsText(file);
+  }
+
+  // Register file import (replaces YNAB transactions import)
+  async function handleRegisterUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const lines = e.target.result.split('\n').filter(l => l.trim());
+      const hdrs = parseCSVLine(lines[0]);
+      const cutoff = new Date('2025-01-01');
+      const skipGroups = new Set(['Hidden Categories','']);
+
+      const rows = lines.slice(1).map(line => {
+        const vals = parseCSVLine(line);
+        return Object.fromEntries(hdrs.map((h,i) => [h, vals[i]||'']));
+      }).filter(r => {
+        if (!r['Date'] || !r['Category Group']) return false;
+        if (skipGroups.has(r['Category Group'])) return false;
+        const parts = r['Date'].split('/');
+        return new Date(`${parts[2]}-${parts[0]}-${parts[1]}`) >= cutoff;
+      });
+
+      const aggregated = {};
+      for (const r of rows) {
+        const parts = r['Date'].split('/');
+        const month = `${parts[2]}-${parts[0].padStart(2,'0')}-01`;
+        const group = r['Category Group'];
+        const isInflow = group === 'Inflow';
+        const payee = (r['Payee']||'').toUpperCase();
+        const isSlalom = isInflow && payee.includes('SLALOM');
+        const payeeTag = isInflow ? (isSlalom?'slalom':'other') : null;
+        const category = isInflow ? (isSlalom?'Slalom':'Other income') : (r['Category']||group);
+        const key = `${month}||${group}||${category}`;
+        if (!aggregated[key]) aggregated[key] = { month, category, category_group:group, payee_tag:payeeTag, outflow:0, inflow:0 };
+        aggregated[key].outflow += parseFloat((r['Outflow']||'0').replace(/[$,]/g,''))||0;
+        aggregated[key].inflow += parseFloat((r['Inflow']||'0').replace(/[$,]/g,''))||0;
+      }
+
+      const records = Object.values(aggregated).map(a => ({
+        month: a.month, category: a.category, category_group: a.category_group,
+        budgeted: 0, payee_tag: a.payee_tag||null,
+        actual: a.category_group==='Inflow' ? parseFloat((a.inflow-a.outflow).toFixed(2)) : parseFloat((a.outflow-a.inflow).toFixed(2)),
+        source: 'ynab_import'
+      }));
+
+      const incomeCount = records.filter(r=>r.category_group==='Inflow').length;
+      const spendingCount = records.length - incomeCount;
+      const upsertHdrs = { 'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'resolution=merge-duplicates,return=minimal' };
+      try {
+        await fetch(SUPABASE_URL+'/rest/v1/transactions?source=eq.ynab_import', { method:'DELETE', headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY} });
+        for (let i=0;i<records.length;i+=50) {
+          const res = await fetch(SUPABASE_URL+'/rest/v1/transactions', { method:'POST', headers:upsertHdrs, body:JSON.stringify(records.slice(i,i+50)) });
+          if (!res.ok) { const err=await res.json().catch(()=>({})); throw new Error(err.message||'Failed'); }
+        }
+        setStatus('register-status', `Imported ${records.length} records: ${spendingCount} spending + ${incomeCount} income (Jan 2025 onward).`, 'success');
+      } catch(e) { setStatus('register-status', 'Error: '+e.message, 'error'); }
+    };
+    reader.readAsText(file);
+  }
+
+  async function populateTargetsFromPlan(records) {
+    const existing = await sb('envelope_targets?select=category,category_group');
+    const existingKeys = new Set(existing.map(e => e.category_group+'||'+e.category));
+    const seen = new Set();
+    const newTargets = [];
+    for (const r of records) {
+      const key = r.category_group+'||'+r.category;
+      if (!existingKeys.has(key) && !seen.has(key)) {
+        seen.add(key);
+        newTargets.push({ category: r.category, category_group: r.category_group, monthly_target: 0 });
+      }
+    }
+    if (newTargets.length) {
+      const upsertHdrs = { 'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'resolution=merge-duplicates,return=minimal' };
+      for (let i=0;i<newTargets.length;i+=50) {
+        await fetch(SUPABASE_URL+'/rest/v1/envelope_targets', { method:'POST', headers:upsertHdrs, body:JSON.stringify(newTargets.slice(i,i+50)) });
+      }
+    }
+  }
+
+  async function loadEnvelopeTargets() {
+    const targets = await sb('envelope_targets?order=category_group,category');
+    const el = document.getElementById('targets-list');
+    if (!targets.length) { el.innerHTML = '<p class="placeholder">No categories found. Import a Plan file first.</p>'; return; }
+
+    const groups = {};
+    for (const t of targets) {
+      if (!groups[t.category_group]) groups[t.category_group] = [];
+      groups[t.category_group].push(t);
+    }
+
+    let html = '';
+    for (const [g, cats] of Object.entries(groups)) {
+      html += `<div style="font-size:12px; font-weight:500; text-transform:uppercase; letter-spacing:0.05em; color:var(--color-text-secondary); margin:1rem 0 6px;">${g}</div>`;
+      for (const t of cats) {
+        html += `<div style="display:flex; align-items:center; gap:12px; padding:6px 0; border-bottom:0.5px solid var(--color-border);">
+          <span style="flex:1; font-size:14px;">${t.category}</span>
+          <span style="font-size:12px; color:var(--color-text-tertiary);">$/mo</span>
+          <input type="number" value="${t.monthly_target||''}" placeholder="0" step="10"
+            style="width:100px;" data-id="${t.id}"
+            onchange="saveTarget('${t.id}', this.value)" />
+        </div>`;
+      }
+    }
+    el.innerHTML = html;
+  }
+
+  async function saveTarget(id, value) {
+    try {
+      const res = await fetch(SUPABASE_URL+'/rest/v1/envelope_targets?id=eq.'+id, {
+        method:'PATCH',
+        headers: { 'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal' },
+        body: JSON.stringify({ monthly_target: parseFloat(value)||0, updated_at: new Date().toISOString() })
+      });
+      if (!res.ok) throw new Error('Save failed');
+      setStatus('targets-status','Target saved.','success');
+    } catch(e) { setStatus('targets-status','Error: '+e.message,'error'); }
   }
 
 </script>
