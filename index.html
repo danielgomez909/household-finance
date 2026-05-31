@@ -1393,9 +1393,9 @@
     document.getElementById('vol-mode-dollar').classList.toggle('active', m==='dollar');
     const slider = document.getElementById('vol-threshold');
     slider.min = m==='pct' ? 5 : 50;
-    slider.max = m==='pct' ? 50 : 500;
+    slider.max = m==='pct' ? 50 : 5000;
     slider.step = m==='pct' ? 5 : 50;
-    slider.value = m==='pct' ? 20 : 100;
+    slider.value = m==='pct' ? 20 : 200;
     updateVolLabel();
     renderVolatility();
   }
@@ -1426,7 +1426,7 @@
   async function initPlan() {
     planData = await sb('plans?order=month,category_group,category');
     planActuals = await sb('transactions?source=eq.ynab_import&order=month,category_group,category');
-    planTargets = await sb('envelope_targets?status=eq.active&order=category,envelope');
+    planTargets = await sb('envelope_targets?order=category,envelope,period_start');
     renderVolatility();
   }
 
@@ -2053,6 +2053,7 @@
       }
       setStatus('targets-status','Target saved.','success');
       loadActiveTargets();
+      loadEnvelopeHistory();
     } catch(e) { setStatus('targets-status','Error: '+e.message,'error'); }
   }
 
@@ -2065,6 +2066,7 @@
       });
       setStatus('targets-status','Target deactivated.','success');
       loadActiveTargets();
+      loadEnvelopeHistory();
     } catch(e) { setStatus('targets-status','Error: '+e.message,'error'); }
   }
 
