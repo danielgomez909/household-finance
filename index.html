@@ -405,8 +405,8 @@
           <button class="period-btn active" id="pva-mode-pct" onclick="setPvaMode('pct')">%</button>
           <button class="period-btn" id="pva-mode-dollar" onclick="setPvaMode('dollar')">$</button>
         </div>
-        <input type="range" id="pva-threshold" min="5" max="50" value="10" step="5" style="width:140px;" oninput="updatePvaLabel(); renderPlanVsActual();" />
-        <span id="pva-threshold-val" style="font-size:13px; font-weight:500; min-width:48px;">10%</span>
+        <input type="range" id="pva-threshold" min="50" max="5000" value="200" step="50" style="width:140px;" oninput="updatePvaLabel(); renderPlanVsActual();" />
+        <span id="pva-threshold-val" style="font-size:13px; font-weight:500; min-width:48px;">$200</span>
         <span style="font-size:13px; color:var(--color-text-secondary); margin-left:1rem;">Period:</span>
         <div style="display:flex; gap:6px;">
           <button class="period-btn active" onclick="setPlanPeriod('ytd',this)">YTD</button>
@@ -420,22 +420,26 @@
 
     <!-- Forward plan view -->
     <div id="plan-forward" class="inner-panel">
-      <div style="display:flex; align-items:center; gap:16px; margin-bottom:1.25rem; flex-wrap:wrap;">
-        <span style="font-size:13px; color:var(--color-text-secondary);">Historical:</span>
-        <div style="display:flex; gap:6px;" id="fwd-hist-btns">
-          <button class="period-btn" onclick="setFwdHistPeriod('none',this)">None</button>
-          <button class="period-btn active" onclick="setFwdHistPeriod('ytd',this)">YTD</button>
-          <button class="period-btn" onclick="setFwdHistPeriod('3',this)">3 months</button>
-          <button class="period-btn" onclick="setFwdHistPeriod('6',this)">6 months</button>
-          <button class="period-btn" onclick="setFwdHistPeriod('12',this)">12 months</button>
+      <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:1.25rem;">
+        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+          <span style="font-size:13px; color:var(--color-text-secondary); min-width:80px;">Historical:</span>
+          <div style="display:flex; gap:6px;" id="fwd-hist-btns">
+            <button class="period-btn" onclick="setFwdHistPeriod('none',this)">None</button>
+            <button class="period-btn active" onclick="setFwdHistPeriod('ytd',this)">YTD</button>
+            <button class="period-btn" onclick="setFwdHistPeriod('3',this)">3 mos</button>
+            <button class="period-btn" onclick="setFwdHistPeriod('6',this)">6 mos</button>
+            <button class="period-btn" onclick="setFwdHistPeriod('12',this)">12 mos</button>
+          </div>
         </div>
-        <span style="font-size:13px; color:var(--color-text-secondary);">Forecast:</span>
-        <div style="display:flex; gap:6px;" id="fwd-fcast-btns">
-          <button class="period-btn active" onclick="setFwdPeriod('eoy',this)">Through EOY</button>
-          <button class="period-btn" onclick="setFwdPeriod('3',this)">Next 3 months</button>
-          <button class="period-btn" onclick="setFwdPeriod('6',this)">Next 6 months</button>
-          <button class="period-btn" onclick="setFwdPeriod('12',this)">Next 12 months</button>
-          <button class="period-btn" onclick="setFwdPeriod('none',this)">None</button>
+        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+          <span style="font-size:13px; color:var(--color-text-secondary); min-width:80px;">Forecast:</span>
+          <div style="display:flex; gap:6px;" id="fwd-fcast-btns">
+            <button class="period-btn active" onclick="setFwdPeriod('eoy',this)">EOY</button>
+            <button class="period-btn" onclick="setFwdPeriod('3',this)">3 mos</button>
+            <button class="period-btn" onclick="setFwdPeriod('6',this)">6 mos</button>
+            <button class="period-btn" onclick="setFwdPeriod('12',this)">12 mos</button>
+            <button class="period-btn" onclick="setFwdPeriod('none',this)">None</button>
+          </div>
         </div>
       </div>
       <div id="fwd-content"><p class="placeholder"><i class="ti ti-loader"></i> Loading...</p></div>
@@ -623,6 +627,12 @@
             <input type="month" id="et-period-start" />
           </div>
           <div class="form-group">
+            <label>Effective to (month, blank = ongoing)</label>
+            <input type="month" id="et-period-end" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group full">
             <label>Notes (optional)</label>
             <input type="text" id="et-notes" placeholder="" />
           </div>
@@ -1320,7 +1330,7 @@
   let collapsedGroups = new Set();
   let planView = 'volatility';
   let volMode = 'pct';
-  let pvaMode = 'pct';
+  let pvaMode = 'dollar';
   const PLAN_GROUPS = ['Bills','Frequent','Non-Monthly','Quality of Life','Goals','Savings'];
 
   function showPlanView(view, el) {
@@ -1631,14 +1641,12 @@
 
   function renderForwardPlan() {
     const now = new Date();
-    // Historical months
     let histMonths = [];
     if (fwdHistPeriod !== 'none') {
       const allPast = [...new Set(planActuals.map(r => r.month))].filter(m => new Date(m+'T12:00:00') <= now).sort();
       if (fwdHistPeriod === 'ytd') histMonths = allPast.filter(m => m.startsWith(now.getFullYear()+''));
       else histMonths = allPast.slice(-parseInt(fwdHistPeriod));
     }
-    // Forecast months
     let fcastMonths = [];
     if (fwdPeriod !== 'none') {
       if (fwdPeriod === 'eoy') {
@@ -1657,14 +1665,15 @@
 
     const fmtMonth = m => new Date(m+'T12:00:00').toLocaleDateString('en-US',{month:'short',year:'2-digit'});
     const fmt = v => v===0?'—':'$'+Math.round(v).toLocaleString();
+    const HIST_BG = 'background:rgba(0,0,0,0.03);';
+    const FCAST_BG = '';
 
-    // Build assigned lookup
+    // Lookups
     const assigned = {};
     for (const r of planData) {
       if (!allMonths.includes(r.month) || !PLAN_GROUPS.includes(r.category_group)) continue;
       assigned[r.category_group+'||'+r.category+'||'+r.month] = (assigned[r.category_group+'||'+r.category+'||'+r.month]||0) + r.assigned;
     }
-    // Build actual lookup
     const actual = {};
     for (const r of planActuals) {
       if (!histMonths.includes(r.month) || r.category_group==='Inflow' || !PLAN_GROUPS.includes(r.category_group)) continue;
@@ -1675,19 +1684,33 @@
     const envKeys = new Set();
     for (const t of planTargets) envKeys.add(t.category+'||'+t.envelope);
     for (const r of planData) if (PLAN_GROUPS.includes(r.category_group)) envKeys.add(r.category_group+'||'+r.category);
-    for (const r of planActuals) if (PLAN_GROUPS.includes(r.category_group)) envKeys.add(r.category_group+'||'+r.category);
+    for (const r of planActuals) if (PLAN_GROUPS.includes(r.category_group) && r.category_group!=='Inflow') envKeys.add(r.category_group+'||'+r.category);
 
-    // Header — hist months get 3 cols (assigned/actual/target), fcast get 2 (assigned/target)
-    let html = `<div style="overflow-x:auto;"><table class="cf-table"><thead><tr><th>Envelope</th>`;
-    for (const m of histMonths) html += `<th colspan="3" style="text-align:center;border-left:1px solid var(--color-border);background:var(--color-bg-secondary);">${fmtMonth(m)}</th>`;
-    for (const m of fcastMonths) html += `<th colspan="2" style="text-align:center;border-left:1px solid var(--color-border);">${fmtMonth(m)}</th>`;
-    html += `<th colspan="${histMonths.length?3:2}" style="text-align:center;border-left:1px solid var(--color-border);background:var(--color-bg-secondary);">Total</th></tr>`;
-    html += '<tr><th></th>';
-    for (const m of histMonths) html += '<th style="font-size:10px;color:var(--color-text-secondary);border-left:1px solid var(--color-border);background:var(--color-bg-secondary);">Assigned</th><th style="font-size:10px;color:var(--color-text-secondary);background:var(--color-bg-secondary);">Actual</th><th style="font-size:10px;color:var(--color-text-secondary);background:var(--color-bg-secondary);">Target</th>';
-    for (const m of fcastMonths) html += '<th style="font-size:10px;color:var(--color-text-secondary);border-left:1px solid var(--color-border);">Assigned</th><th style="font-size:10px;color:var(--color-text-secondary);">Target</th>';
-    if (histMonths.length) html += '<th style="font-size:10px;color:var(--color-text-secondary);border-left:1px solid var(--color-border);background:var(--color-bg-secondary);">Assigned</th><th style="font-size:10px;color:var(--color-text-secondary);background:var(--color-bg-secondary);">Actual</th><th style="font-size:10px;color:var(--color-text-secondary);background:var(--color-bg-secondary);">Target</th>';
-    else html += '<th style="font-size:10px;color:var(--color-text-secondary);border-left:1px solid var(--color-border);background:var(--color-bg-secondary);">Assigned</th><th style="font-size:10px;color:var(--color-text-secondary);background:var(--color-bg-secondary);">Target</th>';
-    html += '</tr></thead><tbody>';
+    const nAll = allMonths.length || 1;
+    const nHist = histMonths.length || 1;
+
+    // Each month gets 3 cols (Assigned, Actual/—, Target). Totals + Avg = 2 sets of 3
+    const colsPerMonth = 3;
+    const totalCols = 1 + allMonths.length * colsPerMonth + colsPerMonth * 2; // label + months + total + avg
+
+    let html = `<div style="overflow-x:auto;"><table class="cf-table"><thead>`;
+
+    // Row 1: month headers
+    html += `<tr><th rowspan="2">Envelope</th>`;
+    for (const m of histMonths) html += `<th colspan="${colsPerMonth}" style="text-align:center;border-left:1px solid var(--color-border);${HIST_BG}">${fmtMonth(m)}</th>`;
+    for (const m of fcastMonths) html += `<th colspan="${colsPerMonth}" style="text-align:center;border-left:1px solid var(--color-border);${FCAST_BG}">${fmtMonth(m)}</th>`;
+    html += `<th colspan="${colsPerMonth}" style="text-align:center;border-left:2px solid var(--color-border-md);background:var(--color-bg-secondary);">Total</th>`;
+    html += `<th colspan="${colsPerMonth}" style="text-align:center;border-left:1px solid var(--color-border);background:var(--color-bg-secondary);">Avg/mo</th>`;
+    html += `</tr>`;
+
+    // Row 2: sub-headers
+    const subHdr = (bg) => `<th style="font-size:10px;color:var(--color-text-secondary);border-left:1px solid var(--color-border);${bg}">Assigned</th><th style="font-size:10px;color:var(--color-text-secondary);${bg}">Actual</th><th style="font-size:10px;color:var(--color-text-secondary);${bg}">Target</th>`;
+    html += `<tr>`;
+    for (const m of histMonths) html += subHdr(HIST_BG);
+    for (const m of fcastMonths) html += subHdr(FCAST_BG);
+    html += `<th style="font-size:10px;color:var(--color-text-secondary);border-left:2px solid var(--color-border-md);background:var(--color-bg-secondary);">Assigned</th><th style="font-size:10px;color:var(--color-text-secondary);background:var(--color-bg-secondary);">Actual</th><th style="font-size:10px;color:var(--color-text-secondary);background:var(--color-bg-secondary);">Target</th>`;
+    html += `<th style="font-size:10px;color:var(--color-text-secondary);border-left:1px solid var(--color-border);background:var(--color-bg-secondary);">Assigned</th><th style="font-size:10px;color:var(--color-text-secondary);background:var(--color-bg-secondary);">Actual</th><th style="font-size:10px;color:var(--color-text-secondary);background:var(--color-bg-secondary);">Target</th>`;
+    html += `</tr></thead><tbody>`;
 
     const envsByGroup = {};
     for (const key of envKeys) {
@@ -1700,55 +1723,56 @@
       if (!envsByGroup[g]) continue;
       const envelopes = [...envsByGroup[g]].sort();
       const collapsed = collapsedGroups.has(g);
-      // Compute group totals per month
+
+      // Compute group totals
       const grpA={}, grpAct={}, grpT={};
       for (const env of envelopes) {
-        for (const m of histMonths) {
-          grpA[m]=(grpA[m]||0)+(assigned[g+'||'+env+'||'+m]||0);
-          grpAct[m]=(grpAct[m]||0)+(actual[g+'||'+env+'||'+m]||0);
-          grpT[m]=(grpT[m]||0)+(getTarget(g,env,m)||0);
-        }
-        for (const m of fcastMonths) {
+        for (const m of allMonths) {
           grpA[m]=(grpA[m]||0)+(assigned[g+'||'+env+'||'+m]||0);
           grpT[m]=(grpT[m]||0)+(getTarget(g,env,m)||0);
         }
+        for (const m of histMonths) grpAct[m]=(grpAct[m]||0)+(actual[g+'||'+env+'||'+m]||0);
       }
       const totGA=allMonths.reduce((s,m)=>s+(grpA[m]||0),0);
       const totGAct=histMonths.reduce((s,m)=>s+(grpAct[m]||0),0);
       const totGT=allMonths.reduce((s,m)=>s+(grpT[m]||0),0);
 
-      html += `<tr style="background:var(--color-bg-secondary); cursor:pointer;" onclick="togglePlanGroup('${g}')">
-        <td style="font-size:12px;font-weight:500;text-transform:uppercase;letter-spacing:0.05em;color:var(--color-text-secondary);padding:7px 12px;">${collapsed?'▸':'▾'} ${g}</td>`;
-      for (const m of histMonths) html += `<td style="border-left:1px solid var(--color-border);background:var(--color-bg-secondary);">${fmt(grpA[m]||0)}</td><td style="background:var(--color-bg-secondary);">${fmt(grpAct[m]||0)}</td><td style="background:var(--color-bg-secondary);">${fmt(grpT[m]||0)}</td>`;
-      for (const m of fcastMonths) html += `<td style="border-left:1px solid var(--color-border);">${fmt(grpA[m]||0)}</td><td>${fmt(grpT[m]||0)}</td>`;
-      if (histMonths.length) html += `<td style="border-left:1px solid var(--color-border);background:var(--color-bg-secondary);font-weight:500;">${fmt(totGA)}</td><td style="background:var(--color-bg-secondary);font-weight:500;">${fmt(totGAct)}</td><td style="background:var(--color-bg-secondary);font-weight:500;">${fmt(totGT)}</td>`;
-      else html += `<td style="border-left:1px solid var(--color-border);background:var(--color-bg-secondary);font-weight:500;">${fmt(totGA)}</td><td style="background:var(--color-bg-secondary);font-weight:500;">${fmt(totGT)}</td>`;
-      html += '</tr>';
+      // Group header row
+      html += `<tr style="background:var(--color-bg-secondary); cursor:pointer;" onclick="togglePlanGroup('${g}')">`;
+      html += `<td style="font-size:12px;font-weight:500;text-transform:uppercase;letter-spacing:0.05em;color:var(--color-text-secondary);padding:7px 12px;">${collapsed?'▸':'▾'} ${g}</td>`;
+      for (const m of histMonths) html += `<td style="border-left:1px solid var(--color-border);${HIST_BG}">${fmt(grpA[m]||0)}</td><td style="${HIST_BG}">${fmt(grpAct[m]||0)}</td><td style="${HIST_BG}">${fmt(grpT[m]||0)}</td>`;
+      for (const m of fcastMonths) html += `<td style="border-left:1px solid var(--color-border);">${fmt(grpA[m]||0)}</td><td>—</td><td>${fmt(grpT[m]||0)}</td>`;
+      html += `<td style="border-left:2px solid var(--color-border-md);background:var(--color-bg-secondary);font-weight:500;">${fmt(totGA)}</td><td style="background:var(--color-bg-secondary);font-weight:500;">${fmt(totGAct)}</td><td style="background:var(--color-bg-secondary);font-weight:500;">${fmt(totGT)}</td>`;
+      html += `<td style="border-left:1px solid var(--color-border);background:var(--color-bg-secondary);font-weight:500;">${fmt(totGA/nAll)}</td><td style="background:var(--color-bg-secondary);font-weight:500;">${histMonths.length?fmt(totGAct/nHist):'—'}</td><td style="background:var(--color-bg-secondary);font-weight:500;">${fmt(totGT/nAll)}</td>`;
+      html += `</tr>`;
 
       if (!collapsed) {
         for (const env of envelopes) {
-          html += `<tr class="cf-row-category"><td style="padding-left:20px;">${env}</td>`;
           let totA=0,totAct=0,totT=0;
+          let rowHtml = `<tr class="cf-row-category"><td style="padding-left:20px;">${env}</td>`;
           for (const m of histMonths) {
             const a=assigned[g+'||'+env+'||'+m]||0, act=actual[g+'||'+env+'||'+m]||0, tgt=getTarget(g,env,m)||0;
             totA+=a; totAct+=act; totT+=tgt;
-            const over = tgt>0 && act>tgt*1.05;
-            html += `<td style="border-left:1px solid var(--color-border);">${a>0?fmt(a):'—'}</td><td style="${over?'color:var(--color-danger-text);font-weight:500;':act>0&&tgt>0&&act<tgt*0.9?'color:var(--color-success-text);':''}">${act>0?fmt(act):'—'}</td><td>${tgt>0?fmt(tgt):'—'}</td>`;
+            const over=tgt>0&&act>tgt*1.05, under=act>0&&tgt>0&&act<tgt*0.9;
+            rowHtml += `<td style="border-left:1px solid var(--color-border);${HIST_BG}">${a>0?fmt(a):'—'}</td>`;
+            rowHtml += `<td style="${over?'color:var(--color-danger-text);font-weight:500;':under?'color:var(--color-success-text);':''}${HIST_BG}">${act>0?fmt(act):'—'}</td>`;
+            rowHtml += `<td style="${HIST_BG}">${tgt>0?fmt(tgt):'—'}</td>`;
           }
           for (const m of fcastMonths) {
             const a=assigned[g+'||'+env+'||'+m]||0, tgt=getTarget(g,env,m)||0;
             totA+=a; totT+=tgt;
             const under=tgt>0&&a<tgt*0.9;
-            html += `<td style="border-left:1px solid var(--color-border);">${a>0?fmt(a):'—'}</td><td style="${under?'color:var(--color-info-text);':''}">${tgt>0?fmt(tgt):'—'}</td>`;
+            rowHtml += `<td style="border-left:1px solid var(--color-border);">${a>0?fmt(a):'—'}</td><td>—</td><td style="${under?'color:var(--color-info-text);':''}">${tgt>0?fmt(tgt):'—'}</td>`;
           }
-          if (histMonths.length) html += `<td style="border-left:1px solid var(--color-border);background:var(--color-bg-secondary);">${totA>0?fmt(totA):'—'}</td><td style="background:var(--color-bg-secondary);">${totAct>0?fmt(totAct):'—'}</td><td style="background:var(--color-bg-secondary);">${totT>0?fmt(totT):'—'}</td>`;
-          else html += `<td style="border-left:1px solid var(--color-border);background:var(--color-bg-secondary);">${totA>0?fmt(totA):'—'}</td><td style="background:var(--color-bg-secondary);">${totT>0?fmt(totT):'—'}</td>`;
-          html += '</tr>';
+          rowHtml += `<td style="border-left:2px solid var(--color-border-md);background:var(--color-bg-secondary);">${totA>0?fmt(totA):'—'}</td><td style="background:var(--color-bg-secondary);">${totAct>0?fmt(totAct):'—'}</td><td style="background:var(--color-bg-secondary);">${totT>0?fmt(totT):'—'}</td>`;
+          rowHtml += `<td style="border-left:1px solid var(--color-border);background:var(--color-bg-secondary);">${totA>0?fmt(totA/nAll):'—'}</td><td style="background:var(--color-bg-secondary);">${totAct>0?fmt(totAct/nHist):'—'}</td><td style="background:var(--color-bg-secondary);">${totT>0?fmt(totT/nAll):'—'}</td>`;
+          rowHtml += `</tr>`;
+          html += rowHtml;
         }
       }
     }
     html += '</tbody></table></div>';
-    html += `<p style="font-size:12px;color:var(--color-text-tertiary);margin-top:8px;">Historical months show Assigned / Actual / Target. Forecast months show Assigned / Target. <span style="color:var(--color-danger-text);">Red actual</span> = over target. <span style="color:var(--color-info-text);">Blue target</span> = under-funded.</p>`;
+    html += `<p style="font-size:12px;color:var(--color-text-tertiary);margin-top:8px;">Shaded columns = historical. <span style="color:var(--color-danger-text);">Red actual</span> = over target. <span style="color:var(--color-success-text);">Green actual</span> = 10%+ under. <span style="color:var(--color-info-text);">Blue target</span> = under-funded forecast.</p>`;
     document.getElementById('fwd-content').innerHTML = html;
   }
 
@@ -1975,6 +1999,7 @@
     if (t.frequency === 'fixed') document.getElementById('et-fixed-months').value = t.nbr_months_pd;
     // Set period start - convert date to YYYY-MM for month input
     if (t.period_start) document.getElementById('et-period-start').value = t.period_start.substring(0,7);
+    document.getElementById('et-period-end').value = t.period_end ? t.period_end.substring(0,7) : '';
     document.getElementById('et-notes').value = t.notes || '';
     // Mark the old row for replacement
     document.getElementById('et-editing-id').value = t.id;
@@ -1988,7 +2013,7 @@
     document.getElementById('et-editing-id').value = '';
     document.getElementById('et-edit-banner').style.display = 'none';
     document.getElementById('et-cancel-btn').style.display = 'none';
-    ['et-amount','et-notes','et-per-month'].forEach(id => document.getElementById(id).value = '');
+    ['et-amount','et-notes','et-per-month','et-period-end'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('et-nbr-months').value = 1;
   }
 
@@ -2002,6 +2027,8 @@
     const per_month = parseFloat((amount/nbr_months_pd).toFixed(2));
     const periodStartRaw = document.getElementById('et-period-start').value;
     const period_start = periodStartRaw ? periodStartRaw+'-01' : null;
+    const periodEndRaw = document.getElementById('et-period-end').value;
+    const period_end = periodEndRaw ? periodEndRaw+'-01' : null;
     const notes = document.getElementById('et-notes').value.trim();
     const editingId = document.getElementById('et-editing-id').value;
 
@@ -2012,27 +2039,17 @@
     try {
       if (editingId) {
         // Direct update of existing row
+        const editStatus = period_end ? 'inactive' : 'active';
         await fetch(SUPABASE_URL+'/rest/v1/envelope_targets?id=eq.'+editingId, {
           method:'PATCH',
           headers:{...sbHeaders,'Prefer':'return=minimal'},
-          body:JSON.stringify({ category, envelope, type, frequency, amount, nbr_months_pd, per_month, period_start, notes, last_updated: new Date().toISOString() })
+          body:JSON.stringify({ category, envelope, type, frequency, amount, nbr_months_pd, per_month, period_start, period_end: period_end||null, status: editStatus, notes, last_updated: new Date().toISOString() })
         });
         cancelEdit();
       } else {
-        // New target: deactivate existing active row for this envelope first
-        const existing = await sb(`envelope_targets?category=eq.${encodeURIComponent(category)}&envelope=eq.${encodeURIComponent(envelope)}&status=eq.active`);
-        // period_end = one month before new period_start (non-overlapping)
-        const newStart = new Date(period_start+'T12:00:00');
-        const prevMonth = new Date(newStart.getFullYear(), newStart.getMonth()-1, 1);
-        const period_end_val = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth()+1).padStart(2,'0')}-01`;
-        for (const e of existing) {
-          await fetch(SUPABASE_URL+'/rest/v1/envelope_targets?id=eq.'+e.id, {
-            method:'PATCH',
-            headers:{...sbHeaders,'Prefer':'return=minimal'},
-            body:JSON.stringify({ status:'inactive', period_end: period_end_val, last_updated: new Date().toISOString() })
-          });
-        }
-        await sb('envelope_targets','POST',{ category, envelope, type, frequency, amount, nbr_months_pd, per_month, period_start, status:'active', notes, last_updated: new Date().toISOString() });
+        // New target row — user manages contiguity manually
+        const status = period_end ? 'inactive' : 'active';
+        await sb('envelope_targets','POST',{ category, envelope, type, frequency, amount, nbr_months_pd, per_month, period_start, period_end: period_end||null, status, notes, last_updated: new Date().toISOString() });
       }
       setStatus('targets-status','Target saved.','success');
       loadActiveTargets();
