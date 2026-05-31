@@ -373,16 +373,20 @@
   <div id="tab-plan" class="panel">
     <div class="inner-tabs" style="margin-bottom:1.5rem;">
       <button class="inner-tab active" onclick="showPlanView('volatility',this)">Envelope volatility</button>
-      <button class="inner-tab" onclick="showPlanView('vsactual',this)">Plan vs actual</button>
+      <button class="inner-tab" onclick="showPlanView('vsactual',this)">Envelope comparison</button>
       <button class="inner-tab" onclick="showPlanView('forward',this)">Forward plan</button>
     </div>
 
     <!-- Volatility view -->
     <div id="plan-volatility" class="inner-panel active">
       <div style="display:flex; align-items:center; gap:16px; margin-bottom:1.25rem; flex-wrap:wrap;">
-        <span style="font-size:13px; color:var(--color-text-secondary);">Flag threshold:</span>
-        <input type="range" id="vol-threshold" min="5" max="50" value="20" step="5" style="width:140px;" oninput="document.getElementById('vol-threshold-val').textContent=this.value+'%'; renderVolatility();" />
-        <span id="vol-threshold-val" style="font-size:13px; font-weight:500; min-width:36px;">20%</span>
+        <span style="font-size:13px; color:var(--color-text-secondary);">Threshold type:</span>
+        <div style="display:flex; gap:6px;">
+          <button class="period-btn active" id="vol-mode-pct" onclick="setVolMode('pct')">%</button>
+          <button class="period-btn" id="vol-mode-dollar" onclick="setVolMode('dollar')">$</button>
+        </div>
+        <input type="range" id="vol-threshold" min="5" max="50" value="20" step="5" style="width:140px;" oninput="updateVolLabel(); renderVolatility();" />
+        <span id="vol-threshold-val" style="font-size:13px; font-weight:500; min-width:48px;">20%</span>
         <span style="font-size:13px; color:var(--color-text-secondary); margin-left:1rem;">Period:</span>
         <div style="display:flex; gap:6px;">
           <button class="period-btn" onclick="setPlanPeriod('ytd',this)">YTD</button>
@@ -393,10 +397,17 @@
       <div id="vol-content"><p class="placeholder"><i class="ti ti-loader"></i> Loading...</p></div>
     </div>
 
-    <!-- Plan vs Actual view -->
+    <!-- Envelope Comparison view -->
     <div id="plan-vsactual" class="inner-panel">
-      <div style="display:flex; align-items:center; gap:12px; margin-bottom:1.25rem; flex-wrap:wrap;">
-        <span style="font-size:13px; color:var(--color-text-secondary);">Period:</span>
+      <div style="display:flex; align-items:center; gap:16px; margin-bottom:1.25rem; flex-wrap:wrap;">
+        <span style="font-size:13px; color:var(--color-text-secondary);">Flag threshold:</span>
+        <div style="display:flex; gap:6px;">
+          <button class="period-btn active" id="pva-mode-pct" onclick="setPvaMode('pct')">%</button>
+          <button class="period-btn" id="pva-mode-dollar" onclick="setPvaMode('dollar')">$</button>
+        </div>
+        <input type="range" id="pva-threshold" min="5" max="50" value="10" step="5" style="width:140px;" oninput="updatePvaLabel(); renderPlanVsActual();" />
+        <span id="pva-threshold-val" style="font-size:13px; font-weight:500; min-width:48px;">10%</span>
+        <span style="font-size:13px; color:var(--color-text-secondary); margin-left:1rem;">Period:</span>
         <div style="display:flex; gap:6px;">
           <button class="period-btn active" onclick="setPlanPeriod('ytd',this)">YTD</button>
           <button class="period-btn" onclick="setPlanPeriod('3',this)">3 months</button>
@@ -409,6 +420,15 @@
 
     <!-- Forward plan view -->
     <div id="plan-forward" class="inner-panel">
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom:1.25rem; flex-wrap:wrap;">
+        <span style="font-size:13px; color:var(--color-text-secondary);">Show:</span>
+        <div style="display:flex; gap:6px;">
+          <button class="period-btn active" onclick="setFwdPeriod('eoy',this)">Through EOY</button>
+          <button class="period-btn" onclick="setFwdPeriod('3',this)">Next 3 months</button>
+          <button class="period-btn" onclick="setFwdPeriod('6',this)">Next 6 months</button>
+          <button class="period-btn" onclick="setFwdPeriod('12',this)">Next 12 months</button>
+        </div>
+      </div>
       <div id="fwd-content"><p class="placeholder"><i class="ti ti-loader"></i> Loading...</p></div>
     </div>
   </div>
@@ -538,7 +558,7 @@
           <div class="upload-zone" onclick="document.getElementById('register-file').click()">
             <i class="ti ti-upload"></i>
             Click to select Register CSV
-            <input type="file" id="register-file" accept=".csv" style="display:none;" onchange="handleRegisterUpload(event)" />
+            <input type="file" id="register-file" accept=".csv" style="display:none;" onchange="handleRegisterUpload(event)" onclick="this.value=null" />
           </div>
           <div id="register-status" class="status"></div>
         </div>
@@ -547,7 +567,7 @@
           <div class="upload-zone" onclick="document.getElementById('plan-file').click()">
             <i class="ti ti-upload"></i>
             Click to select Plan CSV
-            <input type="file" id="plan-file" accept=".csv" style="display:none;" onchange="handlePlanUpload(event)" />
+            <input type="file" id="plan-file" accept=".csv" style="display:none;" onchange="handlePlanUpload(event)" onclick="this.value=null" />
           </div>
           <div id="plan-status" class="status"></div>
         </div>
@@ -557,10 +577,73 @@
     <!-- Envelope Targets -->
     <div id="inner-targets" class="inner-panel">
       <div class="card">
-        <div class="card-title">Envelope targets</div>
-        <p style="font-size:14px; color:var(--color-text-secondary); margin-bottom:1rem;">Set the desired monthly target for each envelope. These are loaded from your imported categories — enter the amount you want to cap spending at each month.</p>
-        <div id="targets-list"><p class="placeholder">Import a Plan file first to populate categories.</p></div>
+        <div class="card-title">Add / update envelope target</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Category</label>
+            <select id="et-category" onchange="populateEnvelopes()"></select>
+          </div>
+          <div class="form-group">
+            <label>Envelope</label>
+            <select id="et-envelope"></select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Type</label>
+            <select id="et-type">
+              <option value="outflow">Outflow</option>
+              <option value="inflow">Inflow</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Frequency</label>
+            <select id="et-frequency" onchange="updateFrequencyFields()">
+              <option value="monthly">Monthly</option>
+              <option value="quarterly">Quarterly</option>
+              <option value="semi_annual">Semi-annual</option>
+              <option value="annual">Annual</option>
+              <option value="fixed">Fixed period</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label id="et-amount-label">Amount ($)</label>
+            <input type="number" id="et-amount" placeholder="0" step="10" oninput="calcPerMonth()" />
+          </div>
+          <div class="form-group">
+            <label>Months in period</label>
+            <input type="number" id="et-nbr-months" value="1" min="1" readonly style="background:var(--color-bg-secondary);" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Per month (derived)</label>
+            <input type="number" id="et-per-month" readonly style="background:var(--color-bg-secondary);" />
+          </div>
+          <div class="form-group" id="et-fixed-months-group" style="display:none;">
+            <label>Number of months (fixed)</label>
+            <input type="number" id="et-fixed-months" min="1" placeholder="e.g. 4" oninput="document.getElementById('et-nbr-months').value=this.value; calcPerMonth();" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Effective from (month)</label>
+            <input type="month" id="et-period-start" />
+          </div>
+          <div class="form-group">
+            <label>Notes (optional)</label>
+            <input type="text" id="et-notes" placeholder="" />
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="saveEnvelopeTarget()"><i class="ti ti-device-floppy"></i> Save target</button>
         <div id="targets-status" class="status"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Active targets</div>
+        <div id="targets-list"><p class="placeholder">No targets yet.</p></div>
       </div>
     </div>
 
@@ -1315,7 +1398,10 @@
   let planActuals = [];   // from transactions table
   let planTargets = [];   // from envelope_targets table
   let planPeriod = '6';
+  let fwdPeriod = 'eoy';
   let planView = 'volatility';
+  let volMode = 'pct';
+  let pvaMode = 'pct';
   const PLAN_GROUPS = ['Bills','Frequent','Non-Monthly','Quality of Life','Goals','Savings'];
 
   function showPlanView(view, el) {
@@ -1331,18 +1417,75 @@
 
   function setPlanPeriod(p, el) {
     const parent = el.closest('.inner-panel');
-    parent.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+    parent.querySelectorAll('.period-btn').forEach(b => {
+      if (!b.id || !b.id.startsWith('vol-mode') && !b.id.startsWith('pva-mode')) b.classList.remove('active');
+    });
     el.classList.add('active');
     planPeriod = p;
     if (planView === 'volatility') renderVolatility();
     if (planView === 'vsactual') renderPlanVsActual();
   }
 
+  function setFwdPeriod(p, el) {
+    el.closest('.inner-panel').querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+    el.classList.add('active');
+    fwdPeriod = p;
+    renderForwardPlan();
+  }
+
+  function setVolMode(m) {
+    volMode = m;
+    document.getElementById('vol-mode-pct').classList.toggle('active', m==='pct');
+    document.getElementById('vol-mode-dollar').classList.toggle('active', m==='dollar');
+    const slider = document.getElementById('vol-threshold');
+    slider.min = m==='pct' ? 5 : 50;
+    slider.max = m==='pct' ? 50 : 500;
+    slider.step = m==='pct' ? 5 : 50;
+    slider.value = m==='pct' ? 20 : 100;
+    updateVolLabel();
+    renderVolatility();
+  }
+
+  function setPvaMode(m) {
+    pvaMode = m;
+    document.getElementById('pva-mode-pct').classList.toggle('active', m==='pct');
+    document.getElementById('pva-mode-dollar').classList.toggle('active', m==='dollar');
+    const slider = document.getElementById('pva-threshold');
+    slider.min = m==='pct' ? 5 : 50;
+    slider.max = m==='pct' ? 50 : 500;
+    slider.step = m==='pct' ? 5 : 50;
+    slider.value = m==='pct' ? 10 : 100;
+    updatePvaLabel();
+    renderPlanVsActual();
+  }
+
+  function updateVolLabel() {
+    const v = document.getElementById('vol-threshold').value;
+    document.getElementById('vol-threshold-val').textContent = volMode==='pct' ? v+'%' : '$'+v;
+  }
+
+  function updatePvaLabel() {
+    const v = document.getElementById('pva-threshold').value;
+    document.getElementById('pva-threshold-val').textContent = pvaMode==='pct' ? v+'%' : '$'+v;
+  }
+
   async function initPlan() {
     planData = await sb('plans?order=month,category_group,category');
     planActuals = await sb('transactions?source=eq.ynab_import&order=month,category_group,category');
-    planTargets = await sb('envelope_targets?order=category_group,category');
+    planTargets = await sb('envelope_targets?status=eq.active&order=category,envelope');
     renderVolatility();
+  }
+
+  function getTarget(category, envelope, monthIso) {
+    const d = new Date(monthIso+'T12:00:00');
+    const rows = planTargets.filter(t => t.category === category && t.envelope === envelope);
+    if (!rows.length) return null;
+    const match = rows.find(t => {
+      const start = new Date(t.period_start+'T00:00:00');
+      const end = t.period_end ? new Date(t.period_end+'T00:00:00') : null;
+      return start <= d && (!end || end > d);
+    });
+    return match ? match.per_month : null;
   }
 
   function getPlanMonths(allMonths, period) {
@@ -1352,8 +1495,25 @@
     return sorted.slice(-parseInt(period));
   }
 
+  function getFwdMonths() {
+    const now = new Date();
+    const months = [];
+    if (fwdPeriod === 'eoy') {
+      const yr = now.getFullYear();
+      for (let m = now.getMonth()+1; m < 12; m++) months.push(`${yr}-${String(m+1).padStart(2,'0')}-01`);
+    } else {
+      const n = parseInt(fwdPeriod);
+      for (let i = 1; i <= n; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth()+i, 1);
+        months.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`);
+      }
+    }
+    return months;
+  }
+
   function renderVolatility() {
-    const threshold = parseInt(document.getElementById('vol-threshold')?.value || 20) / 100;
+    if (!planData.length) { document.getElementById('vol-content').innerHTML = '<p class="placeholder">No plan data. Import a Plan file first.</p>'; return; }
+    const thresholdRaw = parseFloat(document.getElementById('vol-threshold')?.value || 20);
     const allMonths = [...new Set(planData.map(r => r.month))].sort();
     const now = new Date();
     const pastMonths = allMonths.filter(m => new Date(m+'T12:00:00') <= now);
@@ -1361,174 +1521,221 @@
     if (!months.length) { document.getElementById('vol-content').innerHTML = '<p class="placeholder">No plan data for this period.</p>'; return; }
 
     const fmtMonth = m => new Date(m+'T12:00:00').toLocaleDateString('en-US',{month:'short',year:'2-digit'});
-    const fmt = v => '$'+Math.round(v).toLocaleString();
+    const fmt = v => v===0?'—':'$'+Math.round(v).toLocaleString();
 
-    // Build: category -> month -> assigned
-    const catMonthAssigned = {};
+    // Build: category_group -> category -> month -> assigned
+    const lookup = {};
     for (const r of planData) {
-      if (!months.includes(r.month)) continue;
-      if (!PLAN_GROUPS.includes(r.category_group)) continue;
-      const key = r.category_group + '||' + r.category;
-      if (!catMonthAssigned[key]) catMonthAssigned[key] = { group: r.category_group, category: r.category, months: {} };
-      catMonthAssigned[key].months[r.month] = (catMonthAssigned[key].months[r.month]||0) + r.assigned;
+      if (!months.includes(r.month) || !PLAN_GROUPS.includes(r.category_group)) continue;
+      const g = r.category_group, c = r.category;
+      if (!lookup[g]) lookup[g] = {};
+      if (!lookup[g][c]) lookup[g][c] = { months: {} };
+      lookup[g][c].months[r.month] = (lookup[g][c].months[r.month]||0) + r.assigned;
     }
 
-    // Build target lookup
-    const targetLookup = {};
-    for (const t of planTargets) targetLookup[t.category_group+'||'+t.category] = t.monthly_target;
-
-    // Compute volatility: std dev / mean of assigned values
-    const rows = [];
-    for (const [key, data] of Object.entries(catMonthAssigned)) {
-      const vals = months.map(m => data.months[m]||0);
-      const nonZero = vals.filter(v => v > 0);
-      if (nonZero.length < 2) continue;
-      const mean = nonZero.reduce((a,b)=>a+b,0)/nonZero.length;
-      if (mean < 10) continue;
-      const variance = nonZero.reduce((a,b)=>a+(b-mean)**2,0)/nonZero.length;
-      const cv = Math.sqrt(variance)/mean; // coefficient of variation
-      const target = targetLookup[key] || null;
-      rows.push({ ...data, vals, mean, cv, target, flagged: cv > threshold });
-    }
-    rows.sort((a,b) => b.cv - a.cv);
-
-    const flagged = rows.filter(r => r.flagged);
-    const stable = rows.filter(r => !r.flagged);
+    const fmt_cv = v => volMode==='pct' ? Math.round(v*100)+'%' : '$'+Math.round(v);
 
     let html = '';
-    if (flagged.length) {
-      html += `<div style="font-size:13px; font-weight:500; color:var(--color-danger-text); margin-bottom:8px;"><i class="ti ti-alert-triangle"></i> ${flagged.length} envelope${flagged.length>1?'s':''} with high variability (>${Math.round(threshold*100)}% CV)</div>`;
-    }
-
-    const renderRows = (rowList, showAll) => {
-      let t = `<table class="cf-table" style="margin-bottom:1.5rem;"><thead><tr>
-        <th>Category</th><th>Target</th>`;
-      for (const m of months) t += `<th>${fmtMonth(m)}</th>`;
-      t += `<th>Avg</th><th>Variability</th></tr></thead><tbody>`;
-      let lastGroup = '';
-      for (const r of rowList) {
-        if (r.group !== lastGroup) {
-          t += `<tr style="background:var(--color-bg-secondary);"><td colspan="${months.length+4}" style="font-size:11px; font-weight:500; text-transform:uppercase; letter-spacing:0.05em; color:var(--color-text-secondary); padding:6px 12px;">${r.group}</td></tr>`;
-          lastGroup = r.group;
-        }
-        const cvPct = Math.round(r.cv*100);
-        const color = r.flagged ? 'var(--color-danger-text)' : 'var(--color-success-text)';
-        t += `<tr class="cf-row-category"><td style="padding-left:12px;">${r.category}</td>`;
-        t += `<td>${r.target ? fmt(r.target) : '—'}</td>`;
-        for (const v of r.vals) {
-          const overTarget = r.target && v > r.target * 1.1;
-          t += `<td style="${overTarget?'color:var(--color-danger-text);font-weight:500;':''}">${v>0?fmt(v):'—'}</td>`;
-        }
-        t += `<td>${fmt(r.mean)}</td>`;
-        t += `<td style="color:${color}; font-weight:500;">${cvPct}%</td></tr>`;
+    for (const g of PLAN_GROUPS) {
+      if (!lookup[g]) continue;
+      const cats = Object.entries(lookup[g]);
+      // Compute group-level volatility
+      const groupMonthTotals = months.map(m => cats.reduce((a,[,d])=>a+(d.months[m]||0),0));
+      const nonZeroG = groupMonthTotals.filter(v=>v>0);
+      let groupCv = 0;
+      if (nonZeroG.length >= 2) {
+        const meanG = nonZeroG.reduce((a,b)=>a+b,0)/nonZeroG.length;
+        const varG = nonZeroG.reduce((a,b)=>a+(b-meanG)**2,0)/nonZeroG.length;
+        groupCv = volMode==='pct' ? Math.sqrt(varG)/meanG : Math.sqrt(varG);
       }
-      t += '</tbody></table>';
-      return t;
-    };
+      const groupFlagged = groupCv > (volMode==='pct' ? thresholdRaw/100 : thresholdRaw);
+      html += `<div style="margin-bottom:1.5rem;"><table class="cf-table">
+        <thead><tr>
+          <th>${g} <span style="font-size:11px; color:${groupFlagged?'var(--color-danger-text)':'var(--color-success-text)'};">${fmt_cv(groupCv)} var</span></th>`;
+      for (const m of months) html += `<th>${fmtMonth(m)}</th>`;
+      html += `<th>Avg</th><th>Variability</th></tr></thead><tbody>`;
 
-    if (flagged.length) html += renderRows(flagged, true);
-    html += `<div style="font-size:13px; font-weight:500; color:var(--color-text-secondary); margin-bottom:8px;">${stable.length} stable envelopes</div>`;
-    html += renderRows(stable, false);
-    html += '<p style="font-size:12px;color:var(--color-text-tertiary);margin-top:4px;">CV = coefficient of variation (std dev / mean). Higher = more variable assigned amounts month to month.</p>';
+      // Group total row
+      html += `<tr style="font-weight:500; background:var(--color-bg-secondary);"><td style="padding-left:8px;">Total</td>`;
+      let gTot = 0;
+      for (const t of groupMonthTotals) { gTot+=t; html += `<td>${fmt(t)}</td>`; }
+      const gMean = nonZeroG.length ? nonZeroG.reduce((a,b)=>a+b,0)/nonZeroG.length : 0;
+      html += `<td>${fmt(gMean)}</td><td style="color:${groupFlagged?'var(--color-danger-text)':'var(--color-success-text)'}; font-weight:500;">${fmt_cv(groupCv)}</td></tr>`;
+
+      // Envelope rows
+      for (const [cat, data] of cats.sort()) {
+        const vals = months.map(m => data.months[m]||0);
+        const nonZero = vals.filter(v=>v>0);
+        if (nonZero.length < 2) { continue; }
+        const mean = nonZero.reduce((a,b)=>a+b,0)/nonZero.length;
+        if (mean < 5) continue;
+        const variance = nonZero.reduce((a,b)=>a+(b-mean)**2,0)/nonZero.length;
+        const cv = volMode==='pct' ? Math.sqrt(variance)/mean : Math.sqrt(variance);
+        const flagged = cv > (volMode==='pct' ? thresholdRaw/100 : thresholdRaw);
+        const color = flagged ? 'var(--color-danger-text)' : 'var(--color-success-text)';
+        html += `<tr class="cf-row-category" style="color:${flagged?'var(--color-danger-text)':'inherit'}"><td style="padding-left:20px;">${cat}</td>`;
+        for (const v of vals) html += `<td>${v>0?fmt(v):'—'}</td>`;
+        html += `<td>${fmt(mean)}</td><td style="color:${color}; font-weight:500;">${fmt_cv(cv)}</td></tr>`;
+      }
+      html += '</tbody></table></div>';
+    }
+    html += `<p style="font-size:12px;color:var(--color-text-tertiary);margin-top:4px;">Variability = ${volMode==='pct'?'coefficient of variation (std dev ÷ mean)':'std dev in dollars'}. Higher = more variable assigned amounts.</p>`;
     document.getElementById('vol-content').innerHTML = html;
   }
 
   function renderPlanVsActual() {
+    if (!planData.length) { document.getElementById('pva-content').innerHTML = '<p class="placeholder">No plan data. Import a Plan file first.</p>'; return; }
+    const thresholdRaw = parseFloat(document.getElementById('pva-threshold')?.value || 10);
     const allMonths = [...new Set(planData.map(r => r.month))].sort();
     const now = new Date();
     const pastMonths = allMonths.filter(m => new Date(m+'T12:00:00') <= now);
     const months = getPlanMonths(pastMonths, planPeriod);
-    if (!months.length) { document.getElementById('pva-content').innerHTML = '<p class="placeholder">No plan data for this period.</p>'; return; }
+    if (!months.length) { document.getElementById('pva-content').innerHTML = '<p class="placeholder">No data for this period.</p>'; return; }
 
     const fmtMonth = m => new Date(m+'T12:00:00').toLocaleDateString('en-US',{month:'short',year:'2-digit'});
     const fmt = v => v===0?'—':'$'+Math.round(Math.abs(v)).toLocaleString();
 
-    // Build lookups
-    const assigned = {}; // month||group||cat -> value
+    // Lookups
+    const assigned = {};
     for (const r of planData) {
       if (!months.includes(r.month)) continue;
       assigned[r.month+'||'+r.category_group+'||'+r.category] = r.assigned;
     }
-    const actual = {}; // month||group||cat -> value
+    const actual = {};
     for (const r of planActuals) {
       if (!months.includes(r.month) || r.category_group==='Inflow') continue;
       actual[r.month+'||'+r.category_group+'||'+r.category] = r.actual;
     }
-    const targetLookup = {};
-    for (const t of planTargets) targetLookup[t.category_group+'||'+t.category] = t.monthly_target;
 
-    // Get all categories that appear in either
     const catKeys = new Set([...Object.keys(assigned).map(k=>k.split('||').slice(1).join('||')), ...Object.keys(actual).map(k=>k.split('||').slice(1).join('||'))]);
-    const cats = [...catKeys].map(k => { const [g,c]=k.split('||'); return {group:g,category:c}; }).filter(c=>PLAN_GROUPS.includes(c.group)).sort((a,b)=>a.group.localeCompare(b.group)||a.category.localeCompare(b.category));
+    const cats = [...catKeys].map(k=>{const [g,c]=k.split('||');return{group:g,category:c};}).filter(c=>PLAN_GROUPS.includes(c.group)).sort((a,b)=>a.group.localeCompare(b.group)||a.category.localeCompare(b.category));
 
-    let html = `<table class="cf-table"><thead><tr><th>Category</th><th>Target</th>`;
+    let html = `<div style="overflow-x:auto;"><table class="cf-table"><thead><tr><th>Envelope</th><th>Target</th>`;
     for (const m of months) html += `<th colspan="2" style="text-align:center; border-left:0.5px solid var(--color-border);">${fmtMonth(m)}</th>`;
+    html += `<th colspan="2" style="text-align:center; border-left:0.5px solid var(--color-border); background:var(--color-bg-secondary);">Total</th>`;
     html += '</tr><tr><th></th><th></th>';
     for (const m of months) html += '<th style="color:var(--color-text-secondary);font-size:11px;border-left:0.5px solid var(--color-border);">Assigned</th><th style="color:var(--color-text-secondary);font-size:11px;">Actual</th>';
+    html += '<th style="color:var(--color-text-secondary);font-size:11px;border-left:0.5px solid var(--color-border);background:var(--color-bg-secondary);">Assigned</th><th style="color:var(--color-text-secondary);font-size:11px;background:var(--color-bg-secondary);">Actual</th>';
     html += '</tr></thead><tbody>';
 
     let lastGroup = '';
+    let groupAssignedTotals = {}, groupActualTotals = {};
     for (const c of cats) {
       if (c.group !== lastGroup) {
-        html += `<tr style="background:var(--color-bg-secondary);"><td colspan="${months.length*2+2}" style="font-size:11px; font-weight:500; text-transform:uppercase; letter-spacing:0.05em; color:var(--color-text-secondary); padding:6px 12px;">${c.group}</td></tr>`;
+        // Output group total row if not first
+        if (lastGroup) {
+          const gA = groupAssignedTotals[lastGroup]||{};
+          const gAct = groupActualTotals[lastGroup]||{};
+          html += `<tr style="font-weight:500; background:var(--color-bg-secondary);"><td style="padding-left:8px;">Total</td><td></td>`;
+          let totA=0,totAct=0;
+          for (const m of months) {
+            const a=gA[m]||0, act=gAct[m]||0;
+            totA+=a; totAct+=act;
+            html+=`<td style="border-left:0.5px solid var(--color-border);">${fmt(a)}</td><td>${fmt(act)}</td>`;
+          }
+          html+=`<td style="border-left:0.5px solid var(--color-border);background:var(--color-bg-secondary);">${fmt(totA)}</td><td style="background:var(--color-bg-secondary);">${fmt(totAct)}</td></tr>`;
+        }
+        html += `<tr style="background:var(--color-bg-tertiary);"><td colspan="${months.length*2+4}" style="font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.05em;color:var(--color-text-secondary);padding:6px 12px;">${c.group}</td></tr>`;
         lastGroup = c.group;
+        groupAssignedTotals[c.group] = {};
+        groupActualTotals[c.group] = {};
       }
-      const tgt = targetLookup[c.group+'||'+c.category];
+      // Find latest target for this envelope
+      const tgt = getTarget(c.group, c.category, months[months.length-1]);
       html += `<tr class="cf-row-category"><td style="padding-left:12px;">${c.category}</td><td>${tgt?'$'+Math.round(tgt).toLocaleString():'—'}</td>`;
+      let totA=0,totAct=0;
       for (const m of months) {
         const a = assigned[m+'||'+c.group+'||'+c.category]||0;
         const act = actual[m+'||'+c.group+'||'+c.category]||0;
-        const overTarget = tgt && act > tgt * 1.05;
-        const overAssigned = act > a * 1.05 && a > 0;
+        groupAssignedTotals[c.group][m] = (groupAssignedTotals[c.group][m]||0)+a;
+        groupActualTotals[c.group][m] = (groupActualTotals[c.group][m]||0)+act;
+        totA+=a; totAct+=act;
+        // Flag: actual vs target (or assigned if no target)
+        const baseline = tgt || (a > 0 ? a : null);
+        const over = baseline && (pvaMode==='pct' ? act > baseline*(1+thresholdRaw/100) : act > baseline+thresholdRaw);
         html += `<td style="border-left:0.5px solid var(--color-border);">${a>0?fmt(a):'—'}</td>`;
-        html += `<td style="${overTarget||overAssigned?'color:var(--color-danger-text);font-weight:500;':''}">${act>0?fmt(act):'—'}</td>`;
+        html += `<td style="${over?'color:var(--color-danger-text);font-weight:500;':act>0&&baseline&&act<baseline*0.9?'color:var(--color-success-text);':''}">${act>0?fmt(act):'—'}</td>`;
       }
-      html += '</tr>';
+      html += `<td style="border-left:0.5px solid var(--color-border);background:var(--color-bg-secondary);">${totA>0?fmt(totA):'—'}</td><td style="background:var(--color-bg-secondary);">${totAct>0?fmt(totAct):'—'}</td></tr>`;
     }
-    html += '</tbody></table>';
-    html += '<p style="font-size:12px;color:var(--color-text-tertiary);margin-top:8px;"><span style="color:var(--color-danger-text);">Red actual</span> = exceeds target or assigned amount.</p>';
+    // Last group total
+    if (lastGroup) {
+      const gA = groupAssignedTotals[lastGroup]||{};
+      const gAct = groupActualTotals[lastGroup]||{};
+      html += `<tr style="font-weight:500; background:var(--color-bg-secondary);"><td style="padding-left:8px;">Total</td><td></td>`;
+      let totA=0,totAct=0;
+      for (const m of months) { const a=gA[m]||0,act=gAct[m]||0; totA+=a; totAct+=act; html+=`<td style="border-left:0.5px solid var(--color-border);">${fmt(a)}</td><td>${fmt(act)}</td>`; }
+      html+=`<td style="border-left:0.5px solid var(--color-border);background:var(--color-bg-secondary);">${fmt(totA)}</td><td style="background:var(--color-bg-secondary);">${fmt(totAct)}</td></tr>`;
+    }
+    html += '</tbody></table></div>';
+    html += `<p style="font-size:12px;color:var(--color-text-tertiary);margin-top:8px;"><span style="color:var(--color-danger-text);">Red</span> = exceeds target/assigned by threshold · <span style="color:var(--color-success-text);">Green</span> = 10%+ under target</p>`;
     document.getElementById('pva-content').innerHTML = html;
   }
 
   function renderForwardPlan() {
-    const now = new Date();
-    const futureMonths = [...new Set(planData.map(r => r.month))].filter(m => new Date(m+'T12:00:00') > now).sort();
-    if (!futureMonths.length) { document.getElementById('fwd-content').innerHTML = '<p class="placeholder">No future plan data found. YNAB only shows future assigned amounts once you assign dollars to future months.</p>'; return; }
+    const months = getFwdMonths();
+    if (!months.length) { document.getElementById('fwd-content').innerHTML = '<p class="placeholder">No future months to show.</p>'; return; }
 
-    const fmtMonth = m => new Date(m+'T12:00:00').toLocaleDateString('en-US',{month:'long',year:'numeric'});
+    const fmtMonth = m => new Date(m+'T12:00:00').toLocaleDateString('en-US',{month:'short',year:'numeric'});
     const fmt = v => v===0?'—':'$'+Math.round(v).toLocaleString();
-    const targetLookup = {};
-    for (const t of planTargets) targetLookup[t.category_group+'||'+t.category] = t.monthly_target;
 
-    // Build: group -> category -> month -> assigned
-    const lookup = {};
+    // Build assigned lookup
+    const assigned = {};
     for (const r of planData) {
-      if (!futureMonths.includes(r.month) || !PLAN_GROUPS.includes(r.category_group)) continue;
-      if (!lookup[r.category_group]) lookup[r.category_group] = {};
-      if (!lookup[r.category_group][r.category]) lookup[r.category_group][r.category] = {};
-      lookup[r.category_group][r.category][r.month] = r.assigned;
+      if (!months.includes(r.month) || !PLAN_GROUPS.includes(r.category_group)) continue;
+      const key = r.category_group+'||'+r.category+'||'+r.month;
+      assigned[key] = (assigned[key]||0) + r.assigned;
     }
 
-    let html = `<table class="cf-table"><thead><tr><th>Category</th><th>Target</th>`;
-    for (const m of futureMonths) html += `<th>${fmtMonth(m)}</th>`;
+    // Get all envelopes from targets + plan data
+    const envKeys = new Set();
+    for (const t of planTargets) envKeys.add(t.category+'||'+t.envelope);
+    for (const r of planData) if (PLAN_GROUPS.includes(r.category_group)) envKeys.add(r.category_group+'||'+r.category);
+
+    let html = `<div style="overflow-x:auto;"><table class="cf-table"><thead><tr><th>Envelope</th>`;
+    for (const m of months) html += `<th colspan="2" style="text-align:center; border-left:0.5px solid var(--color-border);">${fmtMonth(m)}</th>`;
+    html += `<th colspan="2" style="text-align:center; border-left:0.5px solid var(--color-border); background:var(--color-bg-secondary);">Total</th></tr>`;
+    html += '<tr><th></th>';
+    for (const m of months) html += '<th style="color:var(--color-text-secondary);font-size:11px;border-left:0.5px solid var(--color-border);">Assigned</th><th style="color:var(--color-text-secondary);font-size:11px;">Target</th>';
+    html += '<th style="color:var(--color-text-secondary);font-size:11px;border-left:0.5px solid var(--color-border);background:var(--color-bg-secondary);">Assigned</th><th style="color:var(--color-text-secondary);font-size:11px;background:var(--color-bg-secondary);">Target</th>';
     html += '</tr></thead><tbody>';
 
-    for (const g of PLAN_GROUPS) {
-      if (!lookup[g]) continue;
-      html += `<tr style="background:var(--color-bg-secondary);"><td colspan="${futureMonths.length+2}" style="font-size:11px; font-weight:500; text-transform:uppercase; letter-spacing:0.05em; color:var(--color-text-secondary); padding:6px 12px;">${g}</td></tr>`;
-      for (const [cat, monthVals] of Object.entries(lookup[g]).sort()) {
-        const tgt = targetLookup[g+'||'+cat];
-        html += `<tr class="cf-row-category"><td style="padding-left:12px;">${cat}</td><td>${tgt?'$'+Math.round(tgt).toLocaleString():'—'}</td>`;
-        for (const m of futureMonths) {
-          const v = monthVals[m]||0;
-          const underFunded = tgt && v < tgt * 0.9;
-          html += `<td style="${underFunded?'color:var(--color-info-text);':''}">${v>0?fmt(v):'—'}</td>`;
-        }
-        html += '</tr>';
-      }
+    const envsByGroup = {};
+    for (const key of envKeys) {
+      const [g,e] = key.split('||');
+      if (!envsByGroup[g]) envsByGroup[g] = new Set();
+      envsByGroup[g].add(e);
     }
-    html += '</tbody></table>';
-    html += '<p style="font-size:12px;color:var(--color-text-tertiary);margin-top:8px;"><span style="color:var(--color-info-text);">Blue</span> = assigned is below target for that month.</p>';
+
+    for (const g of PLAN_GROUPS) {
+      if (!envsByGroup[g]) continue;
+      const envelopes = [...envsByGroup[g]].sort();
+      html += `<tr style="background:var(--color-bg-tertiary);"><td colspan="${months.length*2+3}" style="font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.05em;color:var(--color-text-secondary);padding:6px 12px;">${g}</td></tr>`;
+      let grpTotA=0, grpTotT=0;
+      const grpMonthA = {}, grpMonthT = {};
+      for (const env of envelopes) {
+        html += `<tr class="cf-row-category"><td style="padding-left:12px;">${env}</td>`;
+        let totA=0,totT=0;
+        for (const m of months) {
+          const a = assigned[g+'||'+env+'||'+m]||0;
+          const tgt = getTarget(g, env, m)||0;
+          grpMonthA[m] = (grpMonthA[m]||0)+a;
+          grpMonthT[m] = (grpMonthT[m]||0)+tgt;
+          totA+=a; totT+=tgt; grpTotA+=a; grpTotT+=tgt;
+          const under = tgt>0 && a<tgt*0.9;
+          html += `<td style="border-left:0.5px solid var(--color-border);">${a>0?fmt(a):'—'}</td>`;
+          html += `<td style="${under?'color:var(--color-info-text);':''}">${tgt>0?fmt(tgt):'—'}</td>`;
+        }
+        html += `<td style="border-left:0.5px solid var(--color-border);background:var(--color-bg-secondary);">${totA>0?fmt(totA):'—'}</td>`;
+        html += `<td style="background:var(--color-bg-secondary);">${totT>0?fmt(totT):'—'}</td></tr>`;
+      }
+      // Group total
+      html += `<tr style="font-weight:500;background:var(--color-bg-secondary);"><td style="padding-left:8px;">Total</td>`;
+      for (const m of months) html += `<td style="border-left:0.5px solid var(--color-border);">${fmt(grpMonthA[m]||0)}</td><td>${fmt(grpMonthT[m]||0)}</td>`;
+      html += `<td style="border-left:0.5px solid var(--color-border);background:var(--color-bg-secondary);">${fmt(grpTotA)}</td><td style="background:var(--color-bg-secondary);">${fmt(grpTotT)}</td></tr>`;
+    }
+    html += '</tbody></table></div>';
+    html += `<p style="font-size:12px;color:var(--color-text-tertiary);margin-top:8px;"><span style="color:var(--color-info-text);">Blue target</span> = assigned is below target for that month.</p>`;
     document.getElementById('fwd-content').innerHTML = html;
   }
 
@@ -1574,8 +1781,7 @@
           if (!res.ok) { const err=await res.json().catch(()=>({})); throw new Error(err.message||'Failed'); }
         }
         setStatus('plan-status', `Imported ${records.length} plan records (Jan 2025 onward).`, 'success');
-        // Auto-populate envelope_targets with categories that don't have targets yet
-        await populateTargetsFromPlan(records);
+
       } catch(e) { setStatus('plan-status', 'Error: '+e.message, 'error'); }
     };
     reader.readAsText(file);
@@ -1640,62 +1846,124 @@
     reader.readAsText(file);
   }
 
-  async function populateTargetsFromPlan(records) {
-    const existing = await sb('envelope_targets?select=category,category_group');
-    const existingKeys = new Set(existing.map(e => e.category_group+'||'+e.category));
-    const seen = new Set();
-    const newTargets = [];
-    for (const r of records) {
-      const key = r.category_group+'||'+r.category;
-      if (!existingKeys.has(key) && !seen.has(key)) {
-        seen.add(key);
-        newTargets.push({ category: r.category, category_group: r.category_group, monthly_target: 0 });
-      }
-    }
-    if (newTargets.length) {
-      const upsertHdrs = { 'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'resolution=merge-duplicates,return=minimal' };
-      for (let i=0;i<newTargets.length;i+=50) {
-        await fetch(SUPABASE_URL+'/rest/v1/envelope_targets', { method:'POST', headers:upsertHdrs, body:JSON.stringify(newTargets.slice(i,i+50)) });
-      }
+  // ── Envelope Targets ─────────────────────────────────────
+  let etCategories = {}; // category -> [envelopes]
+
+  const freqMonths = { monthly:1, quarterly:3, semi_annual:6, annual:12, fixed:1 };
+  const freqLabels = { monthly:'Monthly amount', quarterly:'Quarterly amount', semi_annual:'Semi-annual amount', annual:'Annual amount', fixed:'Total amount (fixed period)' };
+
+  function calcPerMonth() {
+    const amt = parseFloat(document.getElementById('et-amount').value)||0;
+    const n = parseInt(document.getElementById('et-nbr-months').value)||1;
+    document.getElementById('et-per-month').value = n > 0 ? (amt/n).toFixed(2) : '';
+  }
+
+  function updateFrequencyFields() {
+    const freq = document.getElementById('et-frequency').value;
+    const n = freqMonths[freq] || 1;
+    document.getElementById('et-amount-label').textContent = freqLabels[freq];
+    document.getElementById('et-fixed-months-group').style.display = freq==='fixed' ? 'flex' : 'none';
+    if (freq !== 'fixed') {
+      document.getElementById('et-nbr-months').value = n;
+      calcPerMonth();
     }
   }
 
   async function loadEnvelopeTargets() {
-    const targets = await sb('envelope_targets?order=category_group,category');
-    const el = document.getElementById('targets-list');
-    if (!targets.length) { el.innerHTML = '<p class="placeholder">No categories found. Import a Plan file first.</p>'; return; }
+    // Load categories from plans table for dropdowns
+    const plans = await sb('plans?select=category_group,category&order=category_group,category');
+    etCategories = {};
+    for (const p of plans) {
+      if (!etCategories[p.category_group]) etCategories[p.category_group] = new Set();
+      etCategories[p.category_group].add(p.category);
+    }
+    // Populate category dropdown
+    const catSel = document.getElementById('et-category');
+    catSel.innerHTML = Object.keys(etCategories).sort().map(g => `<option value="${g}">${g}</option>`).join('');
+    populateEnvelopes();
+    // Set default period start to current month
+    const now = new Date();
+    document.getElementById('et-period-start').value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    updateFrequencyFields();
+    // Load active targets list
+    loadActiveTargets();
+  }
 
+  function populateEnvelopes() {
+    const cat = document.getElementById('et-category').value;
+    const envSel = document.getElementById('et-envelope');
+    const envs = etCategories[cat] ? [...etCategories[cat]].sort() : [];
+    envSel.innerHTML = envs.map(e => `<option value="${e}">${e}</option>`).join('');
+  }
+
+  async function loadActiveTargets() {
+    const targets = await sb('envelope_targets?status=eq.active&order=category,envelope');
+    const el = document.getElementById('targets-list');
+    if (!targets.length) { el.innerHTML = '<p class="placeholder">No targets yet.</p>'; return; }
     const groups = {};
     for (const t of targets) {
-      if (!groups[t.category_group]) groups[t.category_group] = [];
-      groups[t.category_group].push(t);
+      if (!groups[t.category]) groups[t.category] = [];
+      groups[t.category].push(t);
     }
-
+    const freqLabel = { monthly:'mo', quarterly:'qtr', semi_annual:'6mo', annual:'yr', fixed:'fixed' };
     let html = '';
-    for (const [g, cats] of Object.entries(groups)) {
-      html += `<div style="font-size:12px; font-weight:500; text-transform:uppercase; letter-spacing:0.05em; color:var(--color-text-secondary); margin:1rem 0 6px;">${g}</div>`;
-      for (const t of cats) {
-        html += `<div style="display:flex; align-items:center; gap:12px; padding:6px 0; border-bottom:0.5px solid var(--color-border);">
-          <span style="flex:1; font-size:14px;">${t.category}</span>
-          <span style="font-size:12px; color:var(--color-text-tertiary);">$/mo</span>
-          <input type="number" value="${t.monthly_target||''}" placeholder="0" step="10"
-            style="width:100px;" data-id="${t.id}"
-            onchange="saveTarget('${t.id}', this.value)" />
+    for (const [cat, rows] of Object.entries(groups).sort()) {
+      html += `<div style="font-size:11px; font-weight:500; text-transform:uppercase; letter-spacing:0.05em; color:var(--color-text-secondary); margin:1rem 0 4px; padding-top:8px; border-top:0.5px solid var(--color-border);">${cat}</div>`;
+      for (const t of rows) {
+        html += `<div style="display:flex; align-items:center; gap:12px; padding:6px 0; border-bottom:0.5px solid var(--color-border); font-size:14px;">
+          <span style="flex:1;">${t.envelope}</span>
+          <span style="color:var(--color-text-secondary); font-size:12px;">${t.type}</span>
+          <span style="color:var(--color-text-secondary); font-size:12px;">$${Math.round(t.amount).toLocaleString()} / ${freqLabel[t.frequency]||t.frequency}</span>
+          <span style="font-weight:500;">$${Math.round(t.per_month).toLocaleString()}/mo</span>
+          <button class="btn btn-secondary" style="padding:4px 10px; font-size:12px;" onclick="deactivateTarget('${t.id}')">Deactivate</button>
         </div>`;
       }
     }
     el.innerHTML = html;
   }
 
-  async function saveTarget(id, value) {
+  async function saveEnvelopeTarget() {
+    const category = document.getElementById('et-category').value;
+    const envelope = document.getElementById('et-envelope').value;
+    const type = document.getElementById('et-type').value;
+    const frequency = document.getElementById('et-frequency').value;
+    const amount = parseFloat(document.getElementById('et-amount').value)||0;
+    const nbr_months_pd = parseInt(frequency==='fixed' ? document.getElementById('et-fixed-months').value : document.getElementById('et-nbr-months').value)||1;
+    const per_month = parseFloat((amount/nbr_months_pd).toFixed(2));
+    const periodStartRaw = document.getElementById('et-period-start').value;
+    const period_start = periodStartRaw ? periodStartRaw+'-01' : null;
+    const notes = document.getElementById('et-notes').value.trim();
+
+    if (!category || !envelope || !period_start || amount <= 0) {
+      return setStatus('targets-status','Category, envelope, amount, and effective date are required.','error');
+    }
+
     try {
-      const res = await fetch(SUPABASE_URL+'/rest/v1/envelope_targets?id=eq.'+id, {
-        method:'PATCH',
-        headers: { 'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal' },
-        body: JSON.stringify({ monthly_target: parseFloat(value)||0, updated_at: new Date().toISOString() })
-      });
-      if (!res.ok) throw new Error('Save failed');
+      // Deactivate any existing active row for this envelope
+      const existing = await sb(`envelope_targets?category=eq.${encodeURIComponent(category)}&envelope=eq.${encodeURIComponent(envelope)}&status=eq.active`);
+      for (const e of existing) {
+        await fetch(SUPABASE_URL+'/rest/v1/envelope_targets?id=eq.'+e.id, {
+          method:'PATCH',
+          headers:{...sbHeaders,'Prefer':'return=minimal'},
+          body:JSON.stringify({ status:'inactive', period_end: period_start, last_updated: new Date().toISOString() })
+        });
+      }
+      // Insert new active row
+      await sb('envelope_targets','POST',{ category, envelope, type, frequency, amount, nbr_months_pd, per_month, period_start, status:'active', notes, last_updated: new Date().toISOString() });
       setStatus('targets-status','Target saved.','success');
+      loadActiveTargets();
+    } catch(e) { setStatus('targets-status','Error: '+e.message,'error'); }
+  }
+
+  async function deactivateTarget(id) {
+    try {
+      await fetch(SUPABASE_URL+'/rest/v1/envelope_targets?id=eq.'+id, {
+        method:'PATCH',
+        headers:{...sbHeaders,'Prefer':'return=minimal'},
+        body:JSON.stringify({ status:'inactive', period_end: new Date().toISOString().split('T')[0], last_updated: new Date().toISOString() })
+      });
+      setStatus('targets-status','Target deactivated.','success');
+      loadActiveTargets();
     } catch(e) { setStatus('targets-status','Error: '+e.message,'error'); }
   }
 
