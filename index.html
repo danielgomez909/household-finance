@@ -438,10 +438,8 @@
     <div class="inner-tabs">
       <button class="inner-tab active" onclick="showInnerTab('accounts', this)">Accounts</button>
       <button class="inner-tab" onclick="showInnerTab('snapshot', this)">Record balances</button>
-      <button class="inner-tab" onclick="showInnerTab('ynab', this)">YNAB import</button>
       <button class="inner-tab" onclick="showInnerTab('plan-import', this)">Plan import</button>
       <button class="inner-tab" onclick="showInnerTab('targets', this)">Envelope targets</button>
-      <button class="inner-tab" onclick="showInnerTab('goals', this)">Goals</button>
     </div>
 
     <!-- Accounts -->
@@ -526,23 +524,6 @@
         </div>
         <button class="btn btn-primary" onclick="addSnapshot()"><i class="ti ti-device-floppy"></i> Save balance</button>
         <div id="snap-status" class="status"></div>
-      </div>
-    </div>
-
-    <!-- YNAB Import -->
-    <div id="inner-ynab" class="inner-panel">
-      <div class="card">
-        <div class="card-title">YNAB import</div>
-        <p style="font-size:14px; color:var(--color-text-secondary); margin-bottom:1.25rem;">
-          Export your transactions from YNAB as a CSV (All Accounts, any date range). The file should include columns: Account, Date, Payee, Category Group, Category, Outflow, Inflow.
-        </p>
-        <div class="upload-zone" onclick="document.getElementById('ynab-file').click()">
-          <i class="ti ti-upload"></i>
-          Click to select YNAB CSV export
-          <input type="file" id="ynab-file" accept=".csv" style="display:none;" onchange="handleYnabUpload(event)" />
-        </div>
-        <div id="ynab-status" class="status"></div>
-        <div id="ynab-preview" style="margin-top:1rem; font-size:13px; color:var(--color-text-secondary);"></div>
       </div>
     </div>
 
@@ -637,7 +618,12 @@
             <input type="text" id="et-notes" placeholder="" />
           </div>
         </div>
-        <button class="btn btn-primary" onclick="saveEnvelopeTarget()"><i class="ti ti-device-floppy"></i> Save target</button>
+        <div id="et-edit-banner" style="display:none; font-size:13px; color:var(--color-info-text); background:var(--color-info-bg); padding:8px 12px; border-radius:var(--radius-md); margin-bottom:8px;"></div>
+        <input type="hidden" id="et-editing-id" value="" />
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-primary" onclick="saveEnvelopeTarget()"><i class="ti ti-device-floppy"></i> Save target</button>
+          <button class="btn btn-secondary" onclick="cancelEdit()" id="et-cancel-btn" style="display:none;">Cancel edit</button>
+        </div>
         <div id="targets-status" class="status"></div>
       </div>
 
@@ -647,49 +633,7 @@
       </div>
     </div>
 
-    <!-- Goals -->
-    <div id="inner-goals" class="inner-panel">
-      <div class="card">
-        <div class="card-title">Add goal</div>
-        <div class="form-row">
-          <div class="form-group">
-            <label>Goal name</label>
-            <input type="text" id="goal-name" placeholder="e.g. Emergency fund" />
-          </div>
-          <div class="form-group">
-            <label>Target amount ($)</label>
-            <input type="number" id="goal-target" placeholder="0" />
-          </div>
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label>Current amount ($)</label>
-            <input type="number" id="goal-current" placeholder="0" />
-          </div>
-          <div class="form-group">
-            <label>Monthly contribution ($)</label>
-            <input type="number" id="goal-contrib" placeholder="0" />
-          </div>
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label>Target date (optional)</label>
-            <input type="date" id="goal-date" />
-          </div>
-          <div class="form-group">
-            <label>Notes (optional)</label>
-            <input type="text" id="goal-notes" placeholder="" />
-          </div>
-        </div>
-        <button class="btn btn-primary" onclick="addGoal()"><i class="ti ti-plus"></i> Add goal</button>
-        <div id="goal-status" class="status"></div>
-      </div>
 
-      <div class="card">
-        <div class="card-title">Your goals</div>
-        <div id="goals-list"><p class="placeholder">No goals yet.</p></div>
-      </div>
-    </div>
 
   </div><!-- /admin -->
 
@@ -723,7 +667,7 @@
     document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
     el.classList.add('active');
     document.getElementById('tab-' + name).classList.add('active');
-    if (name === 'admin') { loadAccounts(); loadGoals(); }
+    if (name === 'admin') { loadAccounts(); }
     if (name === 'cashflow') { initCashFlow(); }
     if (name === 'whatif') { initWhatIf(); }
     if (name === 'plan') { initPlan(); }
@@ -904,47 +848,6 @@
     reader.readAsText(file);
   }
 
-  async function addGoal() {
-    const name = document.getElementById('goal-name').value.trim();
-    const target_amount = parseFloat(document.getElementById('goal-target').value);
-    const current_amount = parseFloat(document.getElementById('goal-current').value) || 0;
-    const monthly_contribution = parseFloat(document.getElementById('goal-contrib').value) || 0;
-    const target_date = document.getElementById('goal-date').value || null;
-    const notes = document.getElementById('goal-notes').value.trim();
-    if (!name || isNaN(target_amount)) return setStatus('goal-status', 'Name and target amount are required.', 'error');
-    try {
-      await sb('goals', 'POST', { name, target_amount, current_amount, monthly_contribution, target_date, notes });
-      setStatus('goal-status', 'Goal saved.', 'success');
-      ['goal-name','goal-target','goal-current','goal-contrib','goal-date','goal-notes'].forEach(id => document.getElementById(id).value = '');
-      loadGoals();
-    } catch (e) { setStatus('goal-status', 'Error: ' + e.message, 'error'); }
-  }
-
-  async function loadGoals() {
-    try {
-      const goals = await sb('goals?order=name');
-      const el = document.getElementById('goals-list');
-      if (!goals.length) { el.innerHTML = '<p class="placeholder">No goals yet.</p>'; return; }
-      el.innerHTML = goals.map(g => {
-        const remaining = g.target_amount - g.current_amount;
-        const months = g.monthly_contribution > 0 ? Math.ceil(remaining / g.monthly_contribution) : null;
-        return `
-          <div class="list-row">
-            <div>
-              <span style="font-weight:500;">${g.name}</span>
-              ${g.target_date ? `<span style="color:var(--color-text-secondary); margin-left:8px; font-size:13px;">by ${g.target_date}</span>` : ''}
-            </div>
-            <div style="text-align:right; font-size:13px; color:var(--color-text-secondary);">
-              $${g.current_amount.toLocaleString()} / $${g.target_amount.toLocaleString()}
-              ${months ? `<span style="margin-left:8px;">(~${months} mo)</span>` : ''}
-            </div>
-          </div>`;
-      }).join('');
-    } catch (e) { console.error(e); }
-  }
-
-  loadAccounts();
-  loadGoals();
 
   // ── Cash Flow ──────────────────────────────────────────────
   let cfPeriod = 'month';
@@ -1915,11 +1818,45 @@
           <span style="color:var(--color-text-secondary); font-size:12px;">${t.type}</span>
           <span style="color:var(--color-text-secondary); font-size:12px;">$${Math.round(t.amount).toLocaleString()} / ${freqLabel[t.frequency]||t.frequency}</span>
           <span style="font-weight:500;">$${Math.round(t.per_month).toLocaleString()}/mo</span>
+          <span style="font-size:12px; color:var(--color-text-tertiary);">from ${t.period_start}</span>
+          <button class="btn btn-secondary" style="padding:4px 10px; font-size:12px;" onclick="editTarget(${JSON.stringify(t).split('"').join('&quot;')})">Edit</button>
           <button class="btn btn-secondary" style="padding:4px 10px; font-size:12px;" onclick="deactivateTarget('${t.id}')">Deactivate</button>
         </div>`;
       }
     }
     el.innerHTML = html;
+  }
+
+  function editTarget(t) {
+    // Populate the form with existing target values for easy correction
+    const catSel = document.getElementById('et-category');
+    catSel.value = t.category;
+    populateEnvelopes();
+    document.getElementById('et-envelope').value = t.envelope;
+    document.getElementById('et-type').value = t.type;
+    document.getElementById('et-frequency').value = t.frequency;
+    updateFrequencyFields();
+    document.getElementById('et-amount').value = t.amount;
+    document.getElementById('et-nbr-months').value = t.nbr_months_pd;
+    document.getElementById('et-per-month').value = t.per_month;
+    if (t.frequency === 'fixed') document.getElementById('et-fixed-months').value = t.nbr_months_pd;
+    // Set period start - convert date to YYYY-MM for month input
+    if (t.period_start) document.getElementById('et-period-start').value = t.period_start.substring(0,7);
+    document.getElementById('et-notes').value = t.notes || '';
+    // Mark the old row for replacement
+    document.getElementById('et-editing-id').value = t.id;
+    document.getElementById('et-edit-banner').style.display = 'block';
+    document.getElementById('et-edit-banner').textContent = `Editing: ${t.envelope} — saving will update this record directly.`;
+    document.getElementById('et-cancel-btn').style.display = 'inline-flex';
+    window.scrollTo({top:0, behavior:'smooth'});
+  }
+
+  function cancelEdit() {
+    document.getElementById('et-editing-id').value = '';
+    document.getElementById('et-edit-banner').style.display = 'none';
+    document.getElementById('et-cancel-btn').style.display = 'none';
+    ['et-amount','et-notes','et-per-month'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('et-nbr-months').value = 1;
   }
 
   async function saveEnvelopeTarget() {
@@ -1933,23 +1870,33 @@
     const periodStartRaw = document.getElementById('et-period-start').value;
     const period_start = periodStartRaw ? periodStartRaw+'-01' : null;
     const notes = document.getElementById('et-notes').value.trim();
+    const editingId = document.getElementById('et-editing-id').value;
 
     if (!category || !envelope || !period_start || amount <= 0) {
       return setStatus('targets-status','Category, envelope, amount, and effective date are required.','error');
     }
 
     try {
-      // Deactivate any existing active row for this envelope
-      const existing = await sb(`envelope_targets?category=eq.${encodeURIComponent(category)}&envelope=eq.${encodeURIComponent(envelope)}&status=eq.active`);
-      for (const e of existing) {
-        await fetch(SUPABASE_URL+'/rest/v1/envelope_targets?id=eq.'+e.id, {
+      if (editingId) {
+        // Direct update of existing row
+        await fetch(SUPABASE_URL+'/rest/v1/envelope_targets?id=eq.'+editingId, {
           method:'PATCH',
           headers:{...sbHeaders,'Prefer':'return=minimal'},
-          body:JSON.stringify({ status:'inactive', period_end: period_start, last_updated: new Date().toISOString() })
+          body:JSON.stringify({ category, envelope, type, frequency, amount, nbr_months_pd, per_month, period_start, notes, last_updated: new Date().toISOString() })
         });
+        cancelEdit();
+      } else {
+        // New target: deactivate existing active row for this envelope first
+        const existing = await sb(`envelope_targets?category=eq.${encodeURIComponent(category)}&envelope=eq.${encodeURIComponent(envelope)}&status=eq.active`);
+        for (const e of existing) {
+          await fetch(SUPABASE_URL+'/rest/v1/envelope_targets?id=eq.'+e.id, {
+            method:'PATCH',
+            headers:{...sbHeaders,'Prefer':'return=minimal'},
+            body:JSON.stringify({ status:'inactive', period_end: period_start, last_updated: new Date().toISOString() })
+          });
+        }
+        await sb('envelope_targets','POST',{ category, envelope, type, frequency, amount, nbr_months_pd, per_month, period_start, status:'active', notes, last_updated: new Date().toISOString() });
       }
-      // Insert new active row
-      await sb('envelope_targets','POST',{ category, envelope, type, frequency, amount, nbr_months_pd, per_month, period_start, status:'active', notes, last_updated: new Date().toISOString() });
       setStatus('targets-status','Target saved.','success');
       loadActiveTargets();
     } catch(e) { setStatus('targets-status','Error: '+e.message,'error'); }
