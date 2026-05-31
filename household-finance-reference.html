@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Household Finance — Project Reference</title>
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&family=DM+Mono&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cream: #faf8f4; --cream2: #f2ede4; --navy: #1a2a3a; --navy-light: #4a5e72;
+    --accent: #1d5fa8; --accent-light: #ddeaf8; --green: #3b6d11; --green-light: #e6f0d8;
+    --red: #a32d2d; --red-light: #faeaea;
+    --border: rgba(26,42,58,0.12); --border-strong: rgba(26,42,58,0.22);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--cream); color: var(--navy); line-height: 1.7; }
+  .page { max-width: 860px; margin: 0 auto; padding: 60px 40px 80px; }
+
+  .doc-header { border-bottom: 2px solid var(--navy); padding-bottom: 28px; margin-bottom: 48px; }
+  .doc-title { font-family: 'Lora', serif; font-size: 36px; font-weight: 600; color: var(--navy); margin-bottom: 6px; }
+  .doc-subtitle { font-size: 15px; color: var(--navy-light); }
+  .doc-meta { margin-top: 16px; display: flex; gap: 24px; flex-wrap: wrap; }
+  .doc-meta span { font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: .08em; color: var(--navy-light); }
+  .doc-meta span strong { color: var(--accent); }
+
+  h2 { font-family: 'Lora', serif; font-size: 22px; font-weight: 600; color: var(--navy); margin: 48px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border-strong); }
+  h3 { font-size: 13px; font-weight: 500; color: var(--accent); margin: 24px 0 8px; text-transform: uppercase; letter-spacing: .06em; }
+  p { font-size: 15px; margin-bottom: 12px; color: var(--navy); }
+  ul, ol { padding-left: 20px; margin-bottom: 12px; }
+  li { font-size: 15px; margin-bottom: 6px; color: var(--navy); }
+  a { color: var(--accent); }
+
+  code { font-family: 'DM Mono', monospace; font-size: 13px; background: var(--cream2); padding: 2px 6px; border-radius: 4px; color: var(--accent); border: 1px solid var(--border); }
+  .code-block { font-family: 'DM Mono', monospace; font-size: 12.5px; background: var(--navy); color: #e8f0f8; padding: 16px 20px; border-radius: 8px; margin: 12px 0 20px; white-space: pre; overflow-x: auto; line-height: 1.6; }
+
+  .info-box { background: var(--green-light); border-left: 3px solid var(--green); border-radius: 0 8px 8px 0; padding: 14px 18px; margin: 16px 0; }
+  .info-box p { margin: 0; font-size: 14px; color: var(--green); }
+  .warn-box { background: var(--red-light); border-left: 3px solid var(--red); border-radius: 0 8px 8px 0; padding: 14px 18px; margin: 16px 0; }
+  .warn-box p { margin: 0; font-size: 14px; color: var(--red); }
+  .note-box { background: var(--accent-light); border-left: 3px solid var(--accent); border-radius: 0 8px 8px 0; padding: 14px 18px; margin: 16px 0; }
+  .note-box p { margin: 0; font-size: 14px; color: var(--accent); }
+
+  table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; font-size: 14px; }
+  th { text-align: left; padding: 8px 12px; font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: .06em; color: var(--navy-light); border-bottom: 2px solid var(--border-strong); }
+  td { padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+
+  /* Architecture */
+  .arch { display: flex; align-items: center; gap: 0; margin: 24px 0; flex-wrap: wrap; }
+  .arch-box { background: white; border: 1px solid var(--border-strong); border-radius: 10px; padding: 16px 20px; min-width: 130px; text-align: center; }
+  .arch-box .label { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: .06em; color: var(--navy-light); margin-bottom: 4px; }
+  .arch-box .name { font-family: 'Lora', serif; font-size: 16px; font-weight: 600; color: var(--navy); }
+  .arch-box .detail { font-size: 11px; color: var(--navy-light); margin-top: 4px; }
+  .arch-box.accent { background: var(--accent); border-color: var(--accent); }
+  .arch-box.accent .label, .arch-box.accent .name, .arch-box.accent .detail { color: white; }
+  .arch-arrow { font-size: 20px; color: var(--navy-light); padding: 0 10px; flex-shrink: 0; }
+
+  /* Schema */
+  .schema-table { background: white; border: 1px solid var(--border-strong); border-radius: 10px; margin-bottom: 16px; overflow: hidden; }
+  .schema-table-header { background: var(--cream2); padding: 10px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+  .schema-table-name { font-family: 'DM Mono', monospace; font-size: 14px; font-weight: 500; color: var(--navy); }
+  .schema-table-desc { font-size: 12px; color: var(--navy-light); }
+  .schema-row { display: grid; grid-template-columns: 170px 110px 1fr; gap: 8px; padding: 8px 16px; border-bottom: 1px solid var(--border); font-size: 13px; align-items: baseline; }
+  .schema-row:last-child { border-bottom: none; }
+  .schema-col { font-family: 'DM Mono', monospace; color: var(--accent); }
+  .schema-type { color: var(--navy-light); font-family: 'DM Mono', monospace; font-size: 12px; }
+  .schema-desc { color: var(--navy); }
+  .pk { font-size: 10px; background: var(--accent); color: white; padding: 1px 5px; border-radius: 3px; margin-left: 4px; vertical-align: middle; }
+  .fk { font-size: 10px; background: var(--green); color: white; padding: 1px 5px; border-radius: 3px; margin-left: 4px; vertical-align: middle; }
+  .uq { font-size: 10px; background: #7c5cbf; color: white; padding: 1px 5px; border-radius: 3px; margin-left: 4px; vertical-align: middle; }
+
+  /* Steps */
+  .step { display: flex; gap: 14px; margin-bottom: 14px; align-items: flex-start; }
+  .step-num { width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: white; font-size: 13px; font-weight: 500; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .step-body { flex: 1; padding-top: 3px; }
+  .step-body strong { display: block; font-size: 14px; font-weight: 500; margin-bottom: 2px; }
+  .step-body span { font-size: 13px; color: var(--navy-light); }
+
+  /* Backlog */
+  .backlog-section { margin-bottom: 24px; }
+  .backlog-item { display: flex; gap: 12px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; background: white; }
+  .backlog-tag { font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: .06em; padding: 3px 8px; border-radius: 20px; flex-shrink: 0; height: fit-content; margin-top: 2px; }
+  .tag-ux { background: var(--accent-light); color: var(--accent); }
+  .tag-feature { background: var(--green-light); color: var(--green); }
+  .tag-data { background: #e8eaf6; color: #3949ab; }
+  .tag-plan { background: #f0e8f8; color: #6a3b9a; }
+  .tag-whatif { background: var(--red-light); color: var(--red); }
+  .backlog-text { font-size: 14px; color: var(--navy); }
+
+  .status-live { display: inline-block; font-size: 11px; font-weight: 500; background: var(--green-light); color: var(--green); padding: 2px 8px; border-radius: 20px; }
+  .status-backlog { display: inline-block; font-size: 11px; font-weight: 500; background: var(--cream2); color: var(--navy-light); padding: 2px 8px; border-radius: 20px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="doc-header">
+    <div class="doc-title">Household Finance App</div>
+    <div class="doc-subtitle">Personal financial command center — balance sheet, cash flow, plan vs actual, what-if scenarios</div>
+    <div class="doc-meta">
+      <span>Last updated <strong>May 2026</strong></span>
+      <span>URL <strong><a href="https://household-finance-drab.vercel.app/">household-finance-drab.vercel.app</a></strong></span>
+      <span>Repo <strong><a href="https://github.com/danielgomez909/household-finance">danielgomez909/household-finance</a></strong></span>
+      <span>Supabase <strong>ntrhptxetvdjhoqfaytl</strong></span>
+    </div>
+  </div>
+
+  <!-- OVERVIEW -->
+  <h2>Overview</h2>
+  <p>A single-page HTML app for household financial management. It pulls spending and budget data from YNAB exports, tracks assets and liabilities across all accounts, models envelope-based budget plan vs actual performance, and supports what-if income/spending scenario modeling.</p>
+  <p><strong>Primary use case at build time:</strong> Modeling the cash flow impact of a potential job change with lower initial income — showing how spending adjustments affect monthly surplus/deficit and goal timelines, and what YNAB envelope targets would need to change.</p>
+  <p><strong>Usage cadence:</strong> Monthly for full review; certain views (cash flow, plan accuracy) checked weekly.</p>
+
+  <!-- ARCHITECTURE -->
+  <h2>Architecture</h2>
+  <div class="arch">
+    <div class="arch-box"><div class="label">Source data</div><div class="name">YNAB</div><div class="detail">CSV export</div></div>
+    <div class="arch-arrow">→</div>
+    <div class="arch-box accent"><div class="label">Frontend</div><div class="name">index.html</div><div class="detail">Vanilla JS, no build</div></div>
+    <div class="arch-arrow">↕</div>
+    <div class="arch-box"><div class="label">Database</div><div class="name">Supabase</div><div class="detail">Postgres REST API</div></div>
+    <div class="arch-arrow">←</div>
+    <div class="arch-box"><div class="label">Hosting</div><div class="name">Vercel</div><div class="detail">Auto-deploy from GitHub</div></div>
+  </div>
+
+  <table>
+    <tr><th>Component</th><th>Tool</th><th>Notes</th></tr>
+    <tr><td>Frontend</td><td>Plain HTML + vanilla JS</td><td>Single <code>index.html</code>, no framework, no build step</td></tr>
+    <tr><td>Hosting</td><td>Vercel</td><td>Auto-deploys on GitHub push</td></tr>
+    <tr><td>Source control</td><td>GitHub</td><td><code>danielgomez909/household-finance</code></td></tr>
+    <tr><td>Database</td><td>Supabase (Postgres)</td><td>Accessed via REST API with anon key embedded in HTML</td></tr>
+    <tr><td>Charts</td><td>Chart.js 4.4.0</td><td>CDN — <code>cdn.jsdelivr.net</code></td></tr>
+    <tr><td>Icons</td><td>Tabler Icons 2.44.0</td><td>CDN — <code>cdn.jsdelivr.net</code></td></tr>
+  </table>
+
+  <div class="warn-box"><p>The Supabase anon key is embedded directly in <code>index.html</code>. Acceptable for a private personal app with no PII beyond dollar amounts, but should not be used for a shared or public-facing app.</p></div>
+
+  <!-- SCHEMA -->
+  <h2>Database Schema</h2>
+  <p>All tables live in Supabase project <code>ntrhptxetvdjhoqfaytl</code>.</p>
+
+  <div class="schema-table">
+    <div class="schema-table-header"><span class="schema-table-name">accounts</span><span class="schema-table-desc">All financial accounts and assets/liabilities</span></div>
+    <div class="schema-row"><span class="schema-col">id<span class="pk">PK</span></span><span class="schema-type">uuid</span><span class="schema-desc">Auto-generated</span></div>
+    <div class="schema-row"><span class="schema-col">name</span><span class="schema-type">text</span><span class="schema-desc">Display name, e.g. "Chase Checking"</span></div>
+    <div class="schema-row"><span class="schema-col">type</span><span class="schema-type">text</span><span class="schema-desc">checking · savings · investment · retirement · real_estate · mortgage · credit_card · loan</span></div>
+    <div class="schema-row"><span class="schema-col">category</span><span class="schema-type">text</span><span class="schema-desc">'asset' or 'liability' — auto-set from type</span></div>
+    <div class="schema-row"><span class="schema-col">institution</span><span class="schema-type">text</span><span class="schema-desc">e.g. "Fidelity", "Pennymac"</span></div>
+    <div class="schema-row"><span class="schema-col">notes</span><span class="schema-type">text</span><span class="schema-desc">Optional</span></div>
+    <div class="schema-row"><span class="schema-col">is_active</span><span class="schema-type">boolean</span><span class="schema-desc">Default true; set false to hide without deleting</span></div>
+    <div class="schema-row"><span class="schema-col">created_at</span><span class="schema-type">timestamptz</span><span class="schema-desc">Auto-set</span></div>
+  </div>
+
+  <div class="schema-table">
+    <div class="schema-table-header"><span class="schema-table-name">account_snapshots</span><span class="schema-table-desc">Periodic balance captures — feeds balance sheet and net worth trend</span></div>
+    <div class="schema-row"><span class="schema-col">id<span class="pk">PK</span></span><span class="schema-type">uuid</span><span class="schema-desc">Auto-generated</span></div>
+    <div class="schema-row"><span class="schema-col">account_id<span class="fk">FK</span></span><span class="schema-type">uuid</span><span class="schema-desc">References accounts.id — cascades on delete</span></div>
+    <div class="schema-row"><span class="schema-col">balance</span><span class="schema-type">numeric</span><span class="schema-desc">Balance at as_of_date</span></div>
+    <div class="schema-row"><span class="schema-col">as_of_date</span><span class="schema-type">date</span><span class="schema-desc">Date this snapshot was taken</span></div>
+    <div class="schema-row"><span class="schema-col">source</span><span class="schema-type">text</span><span class="schema-desc">'manual' · 'ynab_import' · 'advisor_import'</span></div>
+    <div class="schema-row"><span class="schema-col">created_at</span><span class="schema-type">timestamptz</span><span class="schema-desc">Auto-set</span></div>
+  </div>
+
+  <div class="schema-table">
+    <div class="schema-table-header"><span class="schema-table-name">transactions</span><span class="schema-table-desc">Monthly aggregated actuals from YNAB Register CSV — one row per month/category</span></div>
+    <div class="schema-row"><span class="schema-col">id<span class="pk">PK</span></span><span class="schema-type">uuid</span><span class="schema-desc">Auto-generated</span></div>
+    <div class="schema-row"><span class="schema-col">month</span><span class="schema-type">date</span><span class="schema-desc">First of month, e.g. 2026-01-01</span></div>
+    <div class="schema-row"><span class="schema-col">category</span><span class="schema-type">text</span><span class="schema-desc">Envelope name, e.g. "Eating Out"</span></div>
+    <div class="schema-row"><span class="schema-col">category_group</span><span class="schema-type">text</span><span class="schema-desc">Bills · Frequent · Non-Monthly · Quality of Life · Inflow</span></div>
+    <div class="schema-row"><span class="schema-col">budgeted</span><span class="schema-type">numeric</span><span class="schema-desc">Always 0 in current import (not used)</span></div>
+    <div class="schema-row"><span class="schema-col">actual</span><span class="schema-type">numeric</span><span class="schema-desc">Positive = outflow (spending); negative = inflow (income)</span></div>
+    <div class="schema-row"><span class="schema-col">payee_tag</span><span class="schema-type">text</span><span class="schema-desc">'slalom' or 'other' for Inflow rows; null for spending rows</span></div>
+    <div class="schema-row"><span class="schema-col">source</span><span class="schema-type">text</span><span class="schema-desc">'ynab_import'</span></div>
+    <div class="schema-row"><span class="schema-col">created_at</span><span class="schema-type">timestamptz</span><span class="schema-desc">Auto-set</span></div>
+    <div class="schema-row"><span class="schema-col"><span class="uq">UQ</span></span><span class="schema-type"></span><span class="schema-desc">(month, category, category_group, source) — enables upsert on re-import</span></div>
+  </div>
+
+  <div class="schema-table">
+    <div class="schema-table-header"><span class="schema-table-name">plans</span><span class="schema-table-desc">Monthly assigned amounts from YNAB Plan CSV — one row per month/envelope</span></div>
+    <div class="schema-row"><span class="schema-col">id<span class="pk">PK</span></span><span class="schema-type">uuid</span><span class="schema-desc">Auto-generated</span></div>
+    <div class="schema-row"><span class="schema-col">month</span><span class="schema-type">date</span><span class="schema-desc">First of month</span></div>
+    <div class="schema-row"><span class="schema-col">category</span><span class="schema-type">text</span><span class="schema-desc">Envelope name</span></div>
+    <div class="schema-row"><span class="schema-col">category_group</span><span class="schema-type">text</span><span class="schema-desc">Category group name</span></div>
+    <div class="schema-row"><span class="schema-col">assigned</span><span class="schema-type">numeric</span><span class="schema-desc">Dollar amount assigned to this envelope in YNAB for that month</span></div>
+    <div class="schema-row"><span class="schema-col">source</span><span class="schema-type">text</span><span class="schema-desc">'ynab_plan_import'</span></div>
+    <div class="schema-row"><span class="schema-col"><span class="uq">UQ</span></span><span class="schema-type"></span><span class="schema-desc">(month, category, category_group)</span></div>
+  </div>
+
+  <div class="schema-table">
+    <div class="schema-table-header"><span class="schema-table-name">envelope_targets</span><span class="schema-table-desc">User-defined targets per envelope — supports historical changes via date ranges</span></div>
+    <div class="schema-row"><span class="schema-col">id<span class="pk">PK</span></span><span class="schema-type">uuid</span><span class="schema-desc">Auto-generated</span></div>
+    <div class="schema-row"><span class="schema-col">category</span><span class="schema-type">text</span><span class="schema-desc">Category group, e.g. "Bills"</span></div>
+    <div class="schema-row"><span class="schema-col">envelope</span><span class="schema-type">text</span><span class="schema-desc">Envelope name, e.g. "Rent/Mortgage"</span></div>
+    <div class="schema-row"><span class="schema-col">type</span><span class="schema-type">text</span><span class="schema-desc">'inflow' or 'outflow'</span></div>
+    <div class="schema-row"><span class="schema-col">frequency</span><span class="schema-type">text</span><span class="schema-desc">monthly · quarterly · semi_annual · annual · fixed</span></div>
+    <div class="schema-row"><span class="schema-col">amount</span><span class="schema-type">numeric</span><span class="schema-desc">Raw amount for the period (e.g. $3,000/quarter)</span></div>
+    <div class="schema-row"><span class="schema-col">nbr_months_pd</span><span class="schema-type">int</span><span class="schema-desc">Months in the period (1/3/6/12/n for fixed)</span></div>
+    <div class="schema-row"><span class="schema-col">per_month</span><span class="schema-type">numeric</span><span class="schema-desc">Derived and stored: amount ÷ nbr_months_pd</span></div>
+    <div class="schema-row"><span class="schema-col">period_start</span><span class="schema-type">date</span><span class="schema-desc">First of month this target takes effect — user-entered</span></div>
+    <div class="schema-row"><span class="schema-col">period_end</span><span class="schema-type">date</span><span class="schema-desc">First of month this ends — null means ongoing. User-entered.</span></div>
+    <div class="schema-row"><span class="schema-col">status</span><span class="schema-type">text</span><span class="schema-desc">'active' or 'inactive' — auto-set: inactive if period_end filled, active if null</span></div>
+    <div class="schema-row"><span class="schema-col">notes</span><span class="schema-type">text</span><span class="schema-desc">Optional</span></div>
+    <div class="schema-row"><span class="schema-col">last_updated</span><span class="schema-type">timestamptz</span><span class="schema-desc">Updated on every save</span></div>
+    <div class="schema-row"><span class="schema-col"><span class="uq">UQ</span></span><span class="schema-type"></span><span class="schema-desc">(category, envelope, period_start)</span></div>
+  </div>
+
+  <div class="schema-table">
+    <div class="schema-table-header"><span class="schema-table-name">scenarios / scenario_items</span><span class="schema-table-desc">What-if scenario storage — defined in schema, UI partially built</span></div>
+    <div class="schema-row"><span class="schema-col">id<span class="pk">PK</span></span><span class="schema-type">uuid</span><span class="schema-desc">Auto-generated</span></div>
+    <div class="schema-row"><span class="schema-col">name</span><span class="schema-type">text</span><span class="schema-desc">Scenario label, e.g. "New job"</span></div>
+    <div class="schema-row"><span class="schema-col">is_baseline</span><span class="schema-type">boolean</span><span class="schema-desc">Marks the baseline scenario</span></div>
+    <div class="schema-row"><span class="schema-col">income_monthly</span><span class="schema-type">numeric</span><span class="schema-desc">Monthly income for this scenario</span></div>
+  </div>
+
+  <div class="note-box"><p>The <code>goals</code> table exists in the schema but is lower priority — goals are now treated as YNAB envelope types (savings envelopes) and managed through the Plan import and envelope_targets workflow.</p></div>
+
+  <!-- APP TABS -->
+  <h2>App Tabs</h2>
+
+  <table>
+    <tr><th>Tab</th><th>Status</th><th>Description</th></tr>
+    <tr><td><strong>Dashboard</strong></td><td><span class="status-backlog">Backlog</span></td><td>Net worth snapshot, monthly cash flow summary, key metrics</td></tr>
+    <tr><td><strong>Balance sheet</strong></td><td><span class="status-backlog">Backlog</span></td><td>Assets and liabilities by type, trended over time via account snapshots</td></tr>
+    <tr><td><strong>Cash flow</strong></td><td><span class="status-live">Live</span></td><td>Actuals by month and category group from YNAB. Period selector, expandable groups, bar/line chart, avg + total columns, 3-paycheck flag, non-Slalom income flag.</td></tr>
+    <tr><td><strong>What-if</strong></td><td><span class="status-live">Live</span></td><td>Baseline average vs scenario (adjusted income + spending by group). $ or % toggle. Side-by-side surplus/deficit, monthly/annual delta, goal timeline impact.</td></tr>
+    <tr><td><strong>Plan</strong></td><td><span class="status-live">Live</span></td><td>Three sub-tabs: Envelope volatility, Envelope comparison, Forward plan. See detail below.</td></tr>
+    <tr><td><strong>Admin</strong></td><td><span class="status-live">Live</span></td><td>Accounts, Record balances, Plan import, Envelope targets.</td></tr>
+  </table>
+
+  <!-- PLAN TAB -->
+  <h2>Plan Tab — Detail</h2>
+
+  <h3>Envelope volatility</h3>
+  <p>Shows how much each envelope's assigned amount varies month to month. Flags envelopes exceeding a user-set threshold. Toggle between % (coefficient of variation) and $ (std dev) mode. Slider adjusts threshold. Groups are collapsible. Group-level totals and variability shown in header row.</p>
+  <p>Period selector: YTD / 6 / 12 months (past months only).</p>
+
+  <h3>Envelope comparison</h3>
+  <p>Assigned vs actual per envelope per month with target as reference. Cells flagged <strong style="color:var(--red);">red</strong> when actual exceeds target/assigned by threshold; <strong style="color:var(--green);">green</strong> when 10%+ under. Toggle % or $ threshold, slider range $50–$5,000. Category group totals row. Groups collapsible.</p>
+  <p>Period selector: YTD / 3 / 6 / 12 months.</p>
+
+  <h3>Forward plan</h3>
+  <p>Unified table: historical months show Assigned / Actual / Target; forecast months show Assigned / Target. Historical months are lightly shaded. Separate period selectors for Historical (None / YTD / 3 / 6 / 12 mos) and Forecast (None / EOY / 3 / 6 / 12 mos). Total and Avg/mo summary columns. Groups collapsible.</p>
+  <p><strong>Target lookup:</strong> <code>getTarget()</code> matches across all envelope_targets rows (active and inactive) by date range, so historical inactive rows correctly supply targets for the months they covered.</p>
+
+  <!-- ADMIN TAB -->
+  <h2>Admin Tab — Detail</h2>
+
+  <h3>Plan import</h3>
+  <p>YNAB's Export function produces two files. Upload both here:</p>
+  <ul>
+    <li><strong>Register CSV</strong> — transaction-level actuals. Aggregated by month/category. Slalom payroll detected by payee name → <code>payee_tag='slalom'</code>; all other inflows → <code>'other'</code>. Replaces all previous <code>ynab_import</code> transactions. Skips Hidden Categories.</li>
+    <li><strong>Plan CSV</strong> — monthly assigned amounts per envelope. Stored in <code>plans</code>. Replaces previous plan data. Skips Hidden Categories and Credit Card Payments. Data imported from Jan 2025 forward.</li>
+  </ul>
+  <div class="info-box"><p>File inputs reset on click so you can re-select the same file without refreshing the page. Each upload clears and replaces — safe to re-run.</p></div>
+
+  <h3>Envelope targets</h3>
+  <p>Manually set monthly targets for each envelope. Category and envelope dropdowns populate from plan import data. Selecting an envelope shows all existing rows (active + inactive) so you can check for overlaps before saving.</p>
+  <table>
+    <tr><th>Frequency</th><th>nbr_months_pd</th><th>per_month derivation</th></tr>
+    <tr><td>Monthly</td><td>1</td><td>amount ÷ 1</td></tr>
+    <tr><td>Quarterly</td><td>3</td><td>amount ÷ 3</td></tr>
+    <tr><td>Semi-annual</td><td>6</td><td>amount ÷ 6</td></tr>
+    <tr><td>Annual</td><td>12</td><td>amount ÷ 12</td></tr>
+    <tr><td>Fixed</td><td>user-entered</td><td>amount ÷ nbr_months_pd</td></tr>
+  </table>
+  <div class="warn-box"><p>Date range contiguity is not enforced automatically. The user must ensure rows for the same envelope are non-overlapping. The envelope history panel shows all rows before you save to help spot issues.</p></div>
+
+  <!-- DATA FLOW -->
+  <h2>Data Flow</h2>
+  <table>
+    <tr><th>Source</th><th>Export method</th><th>Table</th><th>Cadence</th></tr>
+    <tr><td>YNAB Register</td><td>YNAB → Export → Register CSV</td><td><code>transactions</code></td><td>Monthly</td></tr>
+    <tr><td>YNAB Plan</td><td>YNAB → Export → Plan CSV</td><td><code>plans</code></td><td>Monthly</td></tr>
+    <tr><td>Financial advisor portal</td><td>Manual entry (export TBD)</td><td><code>account_snapshots</code></td><td>Monthly</td></tr>
+    <tr><td>Manual accounts (mortgage, CC, checking)</td><td>Admin → Record balances</td><td><code>account_snapshots</code></td><td>Monthly</td></tr>
+    <tr><td>Envelope targets</td><td>Admin → Envelope targets form</td><td><code>envelope_targets</code></td><td>As targets change</td></tr>
+  </table>
+
+  <!-- WHAT-IF -->
+  <h2>What-If Tab — Design Notes</h2>
+  <p>Computes a monthly average baseline from the selected period and compares to a user-defined scenario:</p>
+  <ul>
+    <li><strong>Baseline:</strong> Average monthly income + average spending per category group for selected period (YTD / 3 / 6 / 12 months)</li>
+    <li><strong>Scenario:</strong> New monthly income + optional per-group spending adjustments in $ or %</li>
+    <li><strong>Output:</strong> Side-by-side monthly surplus/deficit, monthly and annual delta, goal/envelope timeline impact</li>
+    <li><strong>3-paycheck detection:</strong> Income months exceeding period average by &gt;30% are flagged</li>
+    <li><strong>Non-Slalom income:</strong> Months with <code>payee_tag='other'</code> inflow rows flagged with ★</li>
+  </ul>
+
+  <!-- DEPLOYMENT -->
+  <h2>Deployment Workflow</h2>
+  <p>How to update the app after making changes in Claude:</p>
+
+  <div class="step"><div class="step-num">1</div><div class="step-body"><strong>Get updated index.html from Claude</strong><span>Make changes in Claude chat. Claude generates an updated file and presents it for download.</span></div></div>
+  <div class="step"><div class="step-num">2</div><div class="step-body"><strong>Upload to GitHub</strong><span>Go to <a href="https://github.com/danielgomez909/household-finance">github.com/danielgomez909/household-finance</a> → Add file → Upload files. Drag in index.html and commit.</span></div></div>
+  <div class="step"><div class="step-num">3</div><div class="step-body"><strong>Vercel auto-deploys</strong><span>Within ~30 seconds, Vercel detects the push and deploys. Visit the Vercel URL to confirm.</span></div></div>
+
+  <div class="info-box"><p>For schema changes: run SQL in Supabase → SQL Editor first, then update app code in Claude, then deploy.</p></div>
+
+  <h3>Resuming development in Claude</h3>
+  <p>When starting a new Claude conversation, share this reference document and the current <code>index.html</code>. Key context Claude needs:</p>
+  <ul>
+    <li>Supabase project ID: <code>ntrhptxetvdjhoqfaytl</code> · anon key in <code>index.html</code> as <code>SUPABASE_KEY</code></li>
+    <li>Single HTML file, no build step, plain JS, Chart.js + Tabler Icons from CDN</li>
+    <li>Deployed to Vercel from GitHub — upload file to repo to deploy</li>
+    <li>YNAB category groups: Bills · Frequent · Non-Monthly · Quality of Life · Inflow</li>
+  </ul>
+
+  <!-- KNOWN LIMITATIONS -->
+  <h2>Known Limitations</h2>
+  <ul>
+    <li>Envelope target date ranges not auto-enforced for contiguity — user responsibility</li>
+    <li>YNAB Plan CSV month format assumed to be "Mon YYYY" (e.g. "Jan 2026") — different locales may fail</li>
+    <li>No authentication — app is publicly accessible at the Vercel URL</li>
+    <li>Supabase anon key embedded in HTML — fine for personal use, not for shared apps</li>
+    <li>Category groups are hardcoded to YNAB structure — changes to YNAB group names require code updates</li>
+  </ul>
+
+  <!-- BACKLOG -->
+  <h2>Feature Backlog</h2>
+
+  <h3>High priority</h3>
+  <div class="backlog-section">
+    <div class="backlog-item"><span class="backlog-tag tag-ux">UX</span><span class="backlog-text">Tighten spacing and real estate across all tabs</span></div>
+    <div class="backlog-item"><span class="backlog-tag tag-feature">Feature</span><span class="backlog-text">Dashboard tab — net worth snapshot, monthly cash flow summary, key metrics at a glance</span></div>
+    <div class="backlog-item"><span class="backlog-tag tag-feature">Feature</span><span class="backlog-text">Balance sheet tab — assets and liabilities by type, trended over time via account snapshots</span></div>
+  </div>
+
+  <h3>Plan tab</h3>
+  <div class="backlog-section">
+    <div class="backlog-item"><span class="backlog-tag tag-plan">Plan</span><span class="backlog-text">Consistent shading and formatting across all three sub-tabs (category group vs envelope row visual style)</span></div>
+    <div class="backlog-item"><span class="backlog-tag tag-plan">Plan</span><span class="backlog-text">Inflow envelopes available to set targets in Admin → Envelope targets</span></div>
+    <div class="backlog-item"><span class="backlog-tag tag-plan">Plan</span><span class="backlog-text">Inflow envelopes visible on all three Plan sub-tabs</span></div>
+    <div class="backlog-item"><span class="backlog-tag tag-plan">Plan</span><span class="backlog-text">Bar charts alongside tabular data on all three Plan sub-tabs</span></div>
+    <div class="backlog-item"><span class="backlog-tag tag-plan">Plan</span><span class="backlog-text">Revisit collapsing Envelope comparison + Forward plan into one tab</span></div>
+  </div>
+
+  <h3>Cash flow tab</h3>
+  <div class="backlog-section">
+    <div class="backlog-item"><span class="backlog-tag tag-ux">UX</span><span class="backlog-text">Data labels on chart bars and net line</span></div>
+    <div class="backlog-item"><span class="backlog-tag tag-ux">UX</span><span class="backlog-text">Total outflow row in table above surplus/deficit row</span></div>
+    <div class="backlog-item"><span class="backlog-tag tag-feature">Feature</span><span class="backlog-text">Rolling cash balance month to month — requires account snapshot starting balance or assumes $0 at period start</span></div>
+  </div>
+
+  <h3>What-if tab</h3>
+  <div class="backlog-section">
+    <div class="backlog-item"><span class="backlog-tag tag-whatif">What-if</span><span class="backlog-text">Export scenario to PDF with scenario name as filename</span></div>
+    <div class="backlog-item"><span class="backlog-tag tag-whatif">What-if</span><span class="backlog-text">Hybrid chart — actuals YTD bars + forecast bars through EOY or next N months on one continuous chart</span></div>
+    <div class="backlog-item"><span class="backlog-tag tag-whatif">What-if</span><span class="backlog-text">Envelope/goal timeline impact — revisit now that plan import and envelope_targets are settled</span></div>
+    <div class="backlog-item"><span class="backlog-tag tag-whatif">What-if</span><span class="backlog-text">Export suggested YNAB envelope target adjustments from scenario as a reference list</span></div>
+  </div>
+
+  <h3>Admin / data</h3>
+  <div class="backlog-section">
+    <div class="backlog-item"><span class="backlog-tag tag-data">Data</span><span class="backlog-text">Add 529 account type to accounts form</span></div>
+    <div class="backlog-item"><span class="backlog-tag tag-data">Data</span><span class="backlog-text">Add life insurance (cash value) account type to accounts form</span></div>
+    <div class="backlog-item"><span class="backlog-tag tag-data">Data</span><span class="backlog-text">Financial advisor portal import — accounts: Individual Brokerage (Fidelity), IRA-BDA (Fidelity), Slalom 401k (Fidelity), Traditional IRA (Fidelity), House. CSV or manual entry TBD.</span></div>
+  </div>
+
+</div>
+</body>
+</html>
