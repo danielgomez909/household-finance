@@ -298,10 +298,102 @@
 
   <!-- Balance Sheet -->
   <div id="tab-balance" class="panel">
-    <div class="placeholder">
-      <i class="ti ti-scale"></i>
-      Balance sheet coming soon.
+
+    <!-- Summary metrics -->
+    <div class="metric-grid" id="bs-metrics">
+      <div class="metric-card"><div class="metric-label">Total assets</div><div class="metric-value" id="bs-total-assets">—</div></div>
+      <div class="metric-card"><div class="metric-label">Total liabilities</div><div class="metric-value" id="bs-total-liabilities">—</div></div>
+      <div class="metric-card"><div class="metric-label">Net worth</div><div class="metric-value" id="bs-net-worth">—</div></div>
+      <div class="metric-card"><div class="metric-label">Liquid assets <span style="font-size:11px; font-weight:400; color:var(--color-text-tertiary);">cash + investments</span></div><div class="metric-value" id="bs-liquid">—</div></div>
     </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem;">
+
+      <!-- Assets -->
+      <div>
+        <div class="card-title" style="margin-bottom:0.75rem;">Assets</div>
+
+        <div class="card" id="bs-cash-card">
+          <div class="card-title">Cash &amp; savings</div>
+          <div id="bs-cash-rows"></div>
+          <div class="list-row" style="font-weight:500; margin-top:4px;">
+            <span>Subtotal</span><span id="bs-cash-total">—</span>
+          </div>
+        </div>
+
+        <div class="card" id="bs-investment-card">
+          <div class="card-title">Investments</div>
+          <div id="bs-investment-rows"></div>
+          <div class="list-row" style="font-weight:500; margin-top:4px;">
+            <span>Subtotal</span><span id="bs-investment-total">—</span>
+          </div>
+        </div>
+
+        <div class="card" id="bs-retirement-card">
+          <div class="card-title">Retirement</div>
+          <div id="bs-retirement-rows"></div>
+          <div class="list-row" style="font-weight:500; margin-top:4px;">
+            <span>Subtotal</span><span id="bs-retirement-total">—</span>
+          </div>
+        </div>
+
+        <div class="card" id="bs-realestate-card">
+          <div class="card-title">Real estate</div>
+          <div id="bs-realestate-rows"></div>
+          <div class="list-row" style="font-weight:500; margin-top:4px;">
+            <span>Subtotal</span><span id="bs-realestate-total">—</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Liabilities -->
+      <div>
+        <div class="card-title" style="margin-bottom:0.75rem;">Liabilities</div>
+
+        <div class="card" id="bs-cc-card">
+          <div class="card-title">Credit cards</div>
+          <div id="bs-cc-rows"></div>
+          <div class="list-row" style="font-weight:500; margin-top:4px;">
+            <span>Subtotal</span><span id="bs-cc-total">—</span>
+          </div>
+        </div>
+
+        <div class="card" id="bs-loans-card">
+          <div class="card-title">Loans</div>
+          <div id="bs-loans-rows"></div>
+          <div class="list-row" style="font-weight:500; margin-top:4px;">
+            <span>Subtotal</span><span id="bs-loans-total">—</span>
+          </div>
+        </div>
+
+        <div class="card" id="bs-mortgage-card">
+          <div class="card-title">Mortgage</div>
+          <div id="bs-mortgage-rows"></div>
+          <div class="list-row" style="font-weight:500; margin-top:4px;">
+            <span>Subtotal</span><span id="bs-mortgage-total">—</span>
+          </div>
+        </div>
+
+        <!-- Equity callout -->
+        <div class="card" style="background:var(--color-bg-secondary);">
+          <div class="card-title">Home equity</div>
+          <div class="list-row">
+            <span style="font-size:13px; color:var(--color-text-secondary);">Home value</span>
+            <span id="bs-home-value">—</span>
+          </div>
+          <div class="list-row">
+            <span style="font-size:13px; color:var(--color-text-secondary);">Mortgage balance</span>
+            <span id="bs-mortgage-balance">—</span>
+          </div>
+          <div class="list-row" style="font-weight:500;">
+            <span>Equity</span>
+            <span id="bs-equity">—</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="bs-as-of" style="font-size:12px; color:var(--color-text-tertiary); margin-top:1rem; text-align:right;"></div>
   </div>
 
   <!-- Cash Flow -->
@@ -695,6 +787,7 @@
     if (name === 'cashflow') { initCashFlow(); }
     if (name === 'whatif') { initWhatIf(); }
     if (name === 'plan') { initPlan(); }
+    if (name === 'balance') { initBalanceSheet(); }
   }
 
   function showInnerTab(name, el) {
@@ -2068,6 +2161,119 @@
       loadActiveTargets();
       loadEnvelopeHistory();
     } catch(e) { setStatus('targets-status','Error: '+e.message,'error'); }
+  }
+
+  // ── Balance Sheet ─────────────────────────────────────────
+  async function initBalanceSheet() {
+    // Load all active accounts with their most recent snapshot
+    const accounts = await sb('accounts?is_active=eq.true&order=type,name');
+    if (!accounts.length) {
+      document.getElementById('bs-as-of').textContent = 'No accounts found. Add accounts in Admin first.';
+      return;
+    }
+
+    // Load most recent snapshot per account
+    const snapshots = await sb('account_snapshots?order=account_id,as_of_date.desc');
+    const latestSnap = {};
+    const latestDate = {};
+    for (const s of snapshots) {
+      if (!latestSnap[s.account_id]) {
+        latestSnap[s.account_id] = s.balance;
+        latestDate[s.account_id] = s.as_of_date;
+      }
+    }
+
+    const fmt = v => '$' + Math.round(Math.abs(v)).toLocaleString();
+    const fmtDate = d => new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+
+    // Group accounts
+    const groups = {
+      cash:       { types: ['checking','savings'],    accounts: [] },
+      investment: { types: ['investment'],             accounts: [] },
+      retirement: { types: ['retirement'],             accounts: [] },
+      realestate: { types: ['real_estate'],            accounts: [] },
+      cc:         { types: ['credit_card'],            accounts: [] },
+      loans:      { types: ['loan'],                   accounts: [] },
+      mortgage:   { types: ['mortgage'],               accounts: [] },
+    };
+
+    for (const a of accounts) {
+      for (const [key, g] of Object.entries(groups)) {
+        if (g.types.includes(a.type)) {
+          g.accounts.push({ ...a, balance: latestSnap[a.id] ?? null, as_of: latestDate[a.id] ?? null });
+        }
+      }
+    }
+
+    // Render a group of accounts into a container
+    function renderRows(containerId, subtotalId, accts, isLiability) {
+      const rowEl = document.getElementById(containerId);
+      const totEl = document.getElementById(subtotalId);
+      if (!accts.length) {
+        rowEl.innerHTML = '<p style="font-size:13px; color:var(--color-text-tertiary); padding:4px 0;">No accounts.</p>';
+        totEl.textContent = '—';
+        return 0;
+      }
+      let total = 0;
+      rowEl.innerHTML = accts.map(a => {
+        const bal = a.balance;
+        const hasSnap = bal !== null;
+        const display = hasSnap ? fmt(bal) : '—';
+        const dateLabel = a.as_of ? `<span style="font-size:11px; color:var(--color-text-tertiary); margin-left:6px;">${fmtDate(a.as_of)}</span>` : '<span style="font-size:11px; color:var(--color-danger-text); margin-left:6px;">no snapshot</span>';
+        if (hasSnap) total += bal;
+        return `<div class="list-row">
+          <div>
+            <span style="font-size:14px;">${a.name}</span>
+            ${a.institution ? `<span style="font-size:12px; color:var(--color-text-tertiary); margin-left:6px;">${a.institution}</span>` : ''}
+            ${dateLabel}
+          </div>
+          <span style="font-weight:500; color:${isLiability?'var(--color-danger-text)':'inherit'}">${display}</span>
+        </div>`;
+      }).join('');
+      totEl.textContent = fmt(total);
+      return total;
+    }
+
+    const cashTotal       = renderRows('bs-cash-rows',        'bs-cash-total',        groups.cash.accounts,       false);
+    const investTotal     = renderRows('bs-investment-rows',  'bs-investment-total',  groups.investment.accounts, false);
+    const retireTotal     = renderRows('bs-retirement-rows',  'bs-retirement-total',  groups.retirement.accounts, false);
+    const realEstTotal    = renderRows('bs-realestate-rows',  'bs-realestate-total',  groups.realestate.accounts, false);
+    const ccTotal         = renderRows('bs-cc-rows',          'bs-cc-total',          groups.cc.accounts,         true);
+    const loansTotal      = renderRows('bs-loans-rows',       'bs-loans-total',       groups.loans.accounts,      true);
+    const mortgageTotal   = renderRows('bs-mortgage-rows',    'bs-mortgage-total',    groups.mortgage.accounts,   true);
+
+    const totalAssets      = cashTotal + investTotal + retireTotal + realEstTotal;
+    const totalLiabilities = ccTotal + loansTotal + mortgageTotal;
+    const netWorth         = totalAssets - totalLiabilities;
+    const liquid           = cashTotal + investTotal;
+
+    // Home equity callout
+    const homeVal = groups.realestate.accounts.reduce((s,a) => s + (a.balance||0), 0);
+    const mortBal = groups.mortgage.accounts.reduce((s,a) => s + (a.balance||0), 0);
+    const equity  = homeVal - mortBal;
+    document.getElementById('bs-home-value').textContent     = homeVal > 0 ? fmt(homeVal) : '—';
+    document.getElementById('bs-mortgage-balance').textContent = mortBal > 0 ? fmt(mortBal) : '—';
+    document.getElementById('bs-equity').textContent         = homeVal > 0 || mortBal > 0 ? fmt(equity) : '—';
+    document.getElementById('bs-equity').style.color        = equity >= 0 ? 'var(--color-success-text)' : 'var(--color-danger-text)';
+
+    // Metrics
+    document.getElementById('bs-total-assets').textContent      = fmt(totalAssets);
+    document.getElementById('bs-total-assets').style.color      = 'var(--color-success-text)';
+    document.getElementById('bs-total-liabilities').textContent = fmt(totalLiabilities);
+    document.getElementById('bs-total-liabilities').style.color = 'var(--color-danger-text)';
+    document.getElementById('bs-net-worth').textContent         = (netWorth >= 0 ? '' : '-') + fmt(netWorth);
+    document.getElementById('bs-net-worth').style.color        = netWorth >= 0 ? 'var(--color-success-text)' : 'var(--color-danger-text)';
+    document.getElementById('bs-liquid').textContent            = fmt(liquid);
+
+    // Dates footer
+    const allDates = Object.values(latestDate).filter(Boolean).sort();
+    if (allDates.length) {
+      const oldest = fmtDate(allDates[0]);
+      const newest = fmtDate(allDates[allDates.length-1]);
+      document.getElementById('bs-as-of').textContent = oldest === newest
+        ? `Balances as of ${newest}`
+        : `Balances as of ${oldest} – ${newest} (most recent per account)`;
+    }
   }
 
 </script>
