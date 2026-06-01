@@ -601,34 +601,27 @@
 
     <!-- Record Balances -->
     <div id="inner-snapshot" class="inner-panel">
-      <div class="card">
-        <div class="card-title">Record account balance</div>
-        <div class="form-row">
-          <div class="form-group">
-            <label>Account</label>
-            <select id="snap-account"></select>
-          </div>
-          <div class="form-group">
-            <label>As-of date</label>
-            <input type="date" id="snap-date" />
-          </div>
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label>Balance ($)</label>
-            <input type="number" id="snap-balance" placeholder="0.00" step="0.01" />
-          </div>
-          <div class="form-group">
-            <label>Source</label>
-            <select id="snap-source">
-              <option value="manual">Manual entry</option>
-              <option value="advisor_import">Advisor portal</option>
-              <option value="ynab_import">YNAB</option>
-            </select>
-          </div>
-        </div>
-        <button class="btn btn-primary" onclick="addSnapshot()"><i class="ti ti-device-floppy"></i> Save balance</button>
-        <div id="snap-status" class="status"></div>
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
+        <p style="font-size:13px; color:var(--color-text-secondary);">Enter balances for each account. The shaded row shows the most recent entry — click to edit. The blank row below adds a new entry.</p>
+        <button class="btn btn-primary" onclick="saveAllSnapshots()" style="white-space:nowrap;"><i class="ti ti-device-floppy"></i> Save all changes</button>
+      </div>
+      <div id="snap-status" class="status"></div>
+      <div style="overflow-x:auto;">
+        <table id="snap-grid" style="width:100%; border-collapse:collapse; font-size:13px;">
+          <thead>
+            <tr style="border-bottom:2px solid var(--color-border-md);">
+              <th style="text-align:left; padding:6px 10px; font-size:11px; font-weight:500; text-transform:uppercase; letter-spacing:0.05em; color:var(--color-text-secondary); min-width:160px;">Account</th>
+              <th style="text-align:left; padding:6px 10px; font-size:11px; font-weight:500; text-transform:uppercase; letter-spacing:0.05em; color:var(--color-text-secondary);">Type</th>
+              <th style="text-align:left; padding:6px 10px; font-size:11px; font-weight:500; text-transform:uppercase; letter-spacing:0.05em; color:var(--color-text-secondary); min-width:110px;">As-of date</th>
+              <th style="text-align:right; padding:6px 10px; font-size:11px; font-weight:500; text-transform:uppercase; letter-spacing:0.05em; color:var(--color-text-secondary); min-width:120px;">Balance ($)</th>
+              <th style="text-align:left; padding:6px 10px; font-size:11px; font-weight:500; text-transform:uppercase; letter-spacing:0.05em; color:var(--color-text-secondary);">Source</th>
+              <th style="padding:6px 10px; min-width:60px;"></th>
+            </tr>
+          </thead>
+          <tbody id="snap-grid-body">
+            <tr><td colspan="6" style="padding:1rem; text-align:center; color:var(--color-text-tertiary);">Loading...</td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
 
@@ -846,27 +839,146 @@
     } catch (e) { console.error(e); }
   }
 
+  let snapGridAccounts = [];
+  let snapGridLatest = {}; // account_id -> snapshot row
+  let snapGridEdits = {};  // account_id -> {editId, editDate, editBalance, editSource} for existing row edits
+  let snapGridNew = {};    // account_id -> {date, balance, source} for new rows
+
   async function loadAccountsDropdown() {
-    try {
-      const accounts = await sb('accounts?is_active=eq.true&order=name');
-      const sel = document.getElementById('snap-account');
-      sel.innerHTML = accounts.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
-      document.getElementById('snap-date').value = new Date().toISOString().split('T')[0];
-    } catch (e) { console.error(e); }
+    await loadSnapGrid();
   }
 
-  async function addSnapshot() {
-    const account_id = document.getElementById('snap-account').value;
-    const as_of_date = document.getElementById('snap-date').value;
-    const balance = parseFloat(document.getElementById('snap-balance').value);
-    const source = document.getElementById('snap-source').value;
-    if (!as_of_date || isNaN(balance)) return setStatus('snap-status', 'Date and balance are required.', 'error');
-    try {
-      await sb('account_snapshots', 'POST', { account_id, as_of_date, balance, source });
-      setStatus('snap-status', 'Balance saved.', 'success');
-      document.getElementById('snap-balance').value = '';
-    } catch (e) { setStatus('snap-status', 'Error: ' + e.message, 'error'); }
+  async function loadSnapGrid() {
+    snapGridAccounts = await sb('accounts?is_active=eq.true&order=type,name');
+    const snaps = await sb('account_snapshots?order=account_id,as_of_date.desc');
+    snapGridLatest = {};
+    for (const s of snaps) {
+      if (!snapGridLatest[s.account_id]) snapGridLatest[s.account_id] = s;
+    }
+    snapGridEdits = {};
+    snapGridNew = {};
+    renderSnapGrid();
   }
+
+  function renderSnapGrid() {
+    const today = new Date().toISOString().split('T')[0];
+    const typeLabel = t => t.replace(/_/g,' ');
+    const sourceOpts = (val) => ['manual','advisor_import','ynab_import'].map(s =>
+      `<option value="${s}" ${val===s?'selected':''}>${s==='manual'?'Manual':s==='advisor_import'?'Advisor':'YNAB'}</option>`
+    ).join('');
+
+    const ROW_STYLE = 'background:var(--color-bg-secondary);';
+    const INPUT_STYLE = 'font-family:inherit; font-size:13px; padding:3px 6px; border:0.5px solid var(--color-border-md); border-radius:4px; background:var(--color-bg); color:var(--color-text-primary); width:100%;';
+    const SELECT_STYLE = 'font-family:inherit; font-size:12px; padding:3px 4px; border:0.5px solid var(--color-border-md); border-radius:4px; background:var(--color-bg); color:var(--color-text-primary);';
+
+    let html = '';
+    let lastType = '';
+
+    for (const a of snapGridAccounts) {
+      if (a.type !== lastType) {
+        html += `<tr><td colspan="6" style="padding:4px 10px 2px; font-size:10px; font-weight:500; text-transform:uppercase; letter-spacing:0.06em; color:var(--color-text-tertiary); background:var(--color-bg-tertiary);">${typeLabel(a.type)}</td></tr>`;
+        lastType = a.type;
+      }
+
+      const latest = snapGridLatest[a.id];
+      const edit = snapGridEdits[a.id] || {};
+      const newRow = snapGridNew[a.id] || {};
+
+      // Existing row (shaded)
+      if (latest) {
+        const editDate = edit.date ?? latest.as_of_date;
+        const editBal = edit.balance ?? latest.balance;
+        const editSrc = edit.source ?? latest.source ?? 'manual';
+        html += `<tr style="${ROW_STYLE} border-bottom:0.5px solid var(--color-border);">
+          <td style="padding:4px 10px; font-weight:500;">${a.name}${a.institution?`<span style="font-size:11px;color:var(--color-text-tertiary);margin-left:6px;">${a.institution}</span>`:''}</td>
+          <td style="padding:4px 10px; color:var(--color-text-secondary); font-size:12px;">${typeLabel(a.type)}</td>
+          <td style="padding:4px 6px;"><input type="date" value="${editDate}" style="${INPUT_STYLE}" onchange="snapEditExisting('${a.id}','date',this.value)" /></td>
+          <td style="padding:4px 6px;"><input type="number" value="${editBal}" step="0.01" style="${INPUT_STYLE} text-align:right;" onchange="snapEditExisting('${a.id}','balance',this.value)" /></td>
+          <td style="padding:4px 6px;"><select style="${SELECT_STYLE}" onchange="snapEditExisting('${a.id}','source',this.value)">${sourceOpts(editSrc)}</select></td>
+          <td style="padding:4px 6px; text-align:center;"><span style="font-size:11px; color:var(--color-text-tertiary);">edit</span></td>
+        </tr>`;
+      } else {
+        html += `<tr style="${ROW_STYLE} border-bottom:0.5px solid var(--color-border);">
+          <td style="padding:4px 10px; font-weight:500; color:var(--color-text-tertiary);">${a.name}${a.institution?`<span style="font-size:11px;color:var(--color-text-tertiary);margin-left:6px;">${a.institution}</span>`:''}</td>
+          <td style="padding:4px 10px; color:var(--color-text-tertiary); font-size:12px;">${typeLabel(a.type)}</td>
+          <td colspan="3" style="padding:4px 10px; font-size:12px; color:var(--color-text-tertiary);">no snapshot yet</td>
+          <td></td>
+        </tr>`;
+      }
+
+      // New row (white)
+      const newDate = newRow.date ?? today;
+      const newBal = newRow.balance ?? '';
+      const newSrc = newRow.source ?? 'manual';
+      html += `<tr style="border-bottom:1px solid var(--color-border-md);">
+        <td style="padding:4px 10px; color:var(--color-text-tertiary); font-size:12px; padding-left:20px;">↳ new entry</td>
+        <td style="padding:4px 10px;"></td>
+        <td style="padding:4px 6px;"><input type="date" value="${newDate}" style="${INPUT_STYLE}" onchange="snapEditNew('${a.id}','date',this.value)" /></td>
+        <td style="padding:4px 6px;"><input type="number" value="${newBal}" placeholder="0.00" step="0.01" style="${INPUT_STYLE} text-align:right;" onchange="snapEditNew('${a.id}','balance',this.value)" /></td>
+        <td style="padding:4px 6px;"><select style="${SELECT_STYLE}" onchange="snapEditNew('${a.id}','source',this.value)">${sourceOpts(newSrc)}</select></td>
+        <td style="padding:4px 6px;"></td>
+      </tr>`;
+    }
+
+    document.getElementById('snap-grid-body').innerHTML = html;
+  }
+
+  function snapEditExisting(accountId, field, value) {
+    if (!snapGridEdits[accountId]) {
+      const latest = snapGridLatest[accountId];
+      snapGridEdits[accountId] = { id: latest.id, date: latest.as_of_date, balance: latest.balance, source: latest.source||'manual' };
+    }
+    snapGridEdits[accountId][field] = value;
+  }
+
+  function snapEditNew(accountId, field, value) {
+    if (!snapGridNew[accountId]) snapGridNew[accountId] = { date: new Date().toISOString().split('T')[0], balance: '', source: 'manual' };
+    snapGridNew[accountId][field] = value;
+  }
+
+  async function saveAllSnapshots() {
+    let saved = 0, errors = 0;
+    const today = new Date().toISOString().split('T')[0];
+
+    // Save edits to existing rows (PATCH)
+    for (const [accountId, edit] of Object.entries(snapGridEdits)) {
+      const latest = snapGridLatest[accountId];
+      if (!latest) continue;
+      const balance = parseFloat(edit.balance);
+      if (isNaN(balance)) continue;
+      try {
+        await fetch(`${SUPABASE_URL}/rest/v1/account_snapshots?id=eq.${latest.id}`, {
+          method: 'PATCH',
+          headers: { ...sbHeaders, 'Prefer': 'return=minimal' },
+          body: JSON.stringify({ balance, as_of_date: edit.date, source: edit.source })
+        });
+        saved++;
+      } catch(e) { errors++; }
+    }
+
+    // Save new rows (POST) — only if balance is filled in
+    for (const [accountId, newRow] of Object.entries(snapGridNew)) {
+      const balance = parseFloat(newRow.balance);
+      if (isNaN(balance) || newRow.balance === '') continue;
+      try {
+        await sb('account_snapshots', 'POST', {
+          account_id: accountId,
+          as_of_date: newRow.date || today,
+          balance,
+          source: newRow.source || 'manual'
+        });
+        saved++;
+      } catch(e) { errors++; }
+    }
+
+    if (errors) setStatus('snap-status', `Saved ${saved} entries, ${errors} errors.`, 'error');
+    else if (saved) setStatus('snap-status', `Saved ${saved} entries.`, 'success');
+    else setStatus('snap-status', 'No changes to save — fill in a new balance row to add an entry.', 'error');
+
+    if (saved) await loadSnapGrid();
+  }
+
+  async function addSnapshot() { /* legacy — replaced by grid */ }
 
   function parseCSVLine(line) {
     const result = [];
