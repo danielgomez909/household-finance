@@ -299,101 +299,77 @@
   <!-- Balance Sheet -->
   <div id="tab-balance" class="panel">
 
-    <!-- Summary metrics -->
-    <div class="metric-grid" id="bs-metrics">
-      <div class="metric-card"><div class="metric-label">Total assets</div><div class="metric-value" id="bs-total-assets">—</div></div>
-      <div class="metric-card"><div class="metric-label">Total liabilities</div><div class="metric-value" id="bs-total-liabilities">—</div></div>
-      <div class="metric-card"><div class="metric-label">Net worth</div><div class="metric-value" id="bs-net-worth">—</div></div>
-      <div class="metric-card"><div class="metric-label">Liquid assets <span style="font-size:11px; font-weight:400; color:var(--color-text-tertiary);">cash + investments</span></div><div class="metric-value" id="bs-liquid">—</div></div>
+    <!-- Summary metrics row -->
+    <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin-bottom:1.25rem;">
+      <div class="metric-card"><div class="metric-label">Total assets</div><div class="metric-value" style="font-size:18px;" id="bs-total-assets">—</div></div>
+      <div class="metric-card"><div class="metric-label">Total liabilities</div><div class="metric-value" style="font-size:18px;" id="bs-total-liabilities">—</div></div>
+      <div class="metric-card"><div class="metric-label">Net worth</div><div class="metric-value" style="font-size:18px;" id="bs-net-worth">—</div></div>
+      <div class="metric-card"><div class="metric-label">Liquid assets</div><div class="metric-value" style="font-size:18px;" id="bs-liquid">—</div></div>
+      <div class="metric-card"><div class="metric-label">Available credit</div><div class="metric-value" style="font-size:18px;" id="bs-avail-credit">—</div></div>
     </div>
 
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem;">
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
 
       <!-- Assets -->
-      <div>
-        <div class="card-title" style="margin-bottom:0.75rem;">Assets</div>
-
-        <div class="card" id="bs-cash-card">
-          <div class="card-title">Cash &amp; savings</div>
+      <div style="display:flex; flex-direction:column; gap:0.75rem;">
+        <div style="font-size:12px; font-weight:500; text-transform:uppercase; letter-spacing:0.05em; color:var(--color-text-secondary);">Assets</div>
+        <div class="card" style="padding:0.75rem;">
+          <div class="card-title" style="margin-bottom:6px;">Cash &amp; savings</div>
           <div id="bs-cash-rows"></div>
-          <div class="list-row" style="font-weight:500; margin-top:4px;">
-            <span>Subtotal</span><span id="bs-cash-total">—</span>
-          </div>
+          <div style="display:flex; justify-content:space-between; font-size:13px; font-weight:500; padding-top:4px; border-top:0.5px solid var(--color-border); margin-top:4px;"><span>Subtotal</span><span id="bs-cash-total">—</span></div>
         </div>
-
-        <div class="card" id="bs-investment-card">
-          <div class="card-title">Investments</div>
+        <div class="card" style="padding:0.75rem;">
+          <div class="card-title" style="margin-bottom:6px;">Investments</div>
           <div id="bs-investment-rows"></div>
-          <div class="list-row" style="font-weight:500; margin-top:4px;">
-            <span>Subtotal</span><span id="bs-investment-total">—</span>
-          </div>
+          <div style="display:flex; justify-content:space-between; font-size:13px; font-weight:500; padding-top:4px; border-top:0.5px solid var(--color-border); margin-top:4px;"><span>Subtotal</span><span id="bs-investment-total">—</span></div>
         </div>
-
-        <div class="card" id="bs-retirement-card">
-          <div class="card-title">Retirement</div>
+        <div class="card" style="padding:0.75rem;">
+          <div class="card-title" style="margin-bottom:6px;">Retirement</div>
           <div id="bs-retirement-rows"></div>
-          <div class="list-row" style="font-weight:500; margin-top:4px;">
-            <span>Subtotal</span><span id="bs-retirement-total">—</span>
-          </div>
+          <div style="display:flex; justify-content:space-between; font-size:13px; font-weight:500; padding-top:4px; border-top:0.5px solid var(--color-border); margin-top:4px;"><span>Subtotal</span><span id="bs-retirement-total">—</span></div>
         </div>
-
-        <div class="card" id="bs-realestate-card">
-          <div class="card-title">Real estate</div>
+        <div class="card" style="padding:0.75rem;" id="bs-529-card">
+          <div class="card-title" style="margin-bottom:6px;">Education (529)</div>
+          <div id="bs-529-rows"></div>
+          <div style="display:flex; justify-content:space-between; font-size:13px; font-weight:500; padding-top:4px; border-top:0.5px solid var(--color-border); margin-top:4px;"><span>Subtotal</span><span id="bs-529-total">—</span></div>
+        </div>
+        <div class="card" style="padding:0.75rem;">
+          <div class="card-title" style="margin-bottom:6px;">Real estate</div>
           <div id="bs-realestate-rows"></div>
-          <div class="list-row" style="font-weight:500; margin-top:4px;">
-            <span>Subtotal</span><span id="bs-realestate-total">—</span>
-          </div>
+          <div style="display:flex; justify-content:space-between; font-size:13px; font-weight:500; padding-top:4px; border-top:0.5px solid var(--color-border); margin-top:4px;"><span>Subtotal</span><span id="bs-realestate-total">—</span></div>
         </div>
       </div>
 
       <!-- Liabilities -->
-      <div>
-        <div class="card-title" style="margin-bottom:0.75rem;">Liabilities</div>
-
-        <div class="card" id="bs-cc-card">
-          <div class="card-title">Credit cards</div>
+      <div style="display:flex; flex-direction:column; gap:0.75rem;">
+        <div style="font-size:12px; font-weight:500; text-transform:uppercase; letter-spacing:0.05em; color:var(--color-text-secondary);">Liabilities</div>
+        <div class="card" style="padding:0.75rem;">
+          <div class="card-title" style="margin-bottom:6px;">Credit cards</div>
           <div id="bs-cc-rows"></div>
-          <div class="list-row" style="font-weight:500; margin-top:4px;">
-            <span>Subtotal</span><span id="bs-cc-total">—</span>
-          </div>
+          <div style="display:flex; justify-content:space-between; font-size:13px; font-weight:500; padding-top:4px; border-top:0.5px solid var(--color-border); margin-top:4px;"><span>Subtotal</span><span id="bs-cc-total">—</span></div>
+          <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--color-text-secondary); padding-top:3px;"><span>Available credit</span><span id="bs-cc-avail">—</span></div>
         </div>
-
-        <div class="card" id="bs-loans-card">
-          <div class="card-title">Loans</div>
+        <div class="card" style="padding:0.75rem;">
+          <div class="card-title" style="margin-bottom:6px;">Loans</div>
           <div id="bs-loans-rows"></div>
-          <div class="list-row" style="font-weight:500; margin-top:4px;">
-            <span>Subtotal</span><span id="bs-loans-total">—</span>
-          </div>
+          <div style="display:flex; justify-content:space-between; font-size:13px; font-weight:500; padding-top:4px; border-top:0.5px solid var(--color-border); margin-top:4px;"><span>Subtotal</span><span id="bs-loans-total">—</span></div>
+          <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--color-text-secondary); padding-top:3px;"><span>Available credit</span><span id="bs-loans-avail">—</span></div>
         </div>
-
-        <div class="card" id="bs-mortgage-card">
-          <div class="card-title">Mortgage</div>
+        <div class="card" style="padding:0.75rem;">
+          <div class="card-title" style="margin-bottom:6px;">Mortgage</div>
           <div id="bs-mortgage-rows"></div>
-          <div class="list-row" style="font-weight:500; margin-top:4px;">
-            <span>Subtotal</span><span id="bs-mortgage-total">—</span>
-          </div>
+          <div style="display:flex; justify-content:space-between; font-size:13px; font-weight:500; padding-top:4px; border-top:0.5px solid var(--color-border); margin-top:4px;"><span>Subtotal</span><span id="bs-mortgage-total">—</span></div>
         </div>
-
-        <!-- Equity callout -->
-        <div class="card" style="background:var(--color-bg-secondary);">
-          <div class="card-title">Home equity</div>
-          <div class="list-row">
-            <span style="font-size:13px; color:var(--color-text-secondary);">Home value</span>
-            <span id="bs-home-value">—</span>
-          </div>
-          <div class="list-row">
-            <span style="font-size:13px; color:var(--color-text-secondary);">Mortgage balance</span>
-            <span id="bs-mortgage-balance">—</span>
-          </div>
-          <div class="list-row" style="font-weight:500;">
-            <span>Equity</span>
-            <span id="bs-equity">—</span>
-          </div>
+        <div class="card" style="padding:0.75rem; background:var(--color-bg-secondary);">
+          <div class="card-title" style="margin-bottom:6px;">Home equity</div>
+          <div style="display:flex; justify-content:space-between; font-size:13px; padding:3px 0; color:var(--color-text-secondary);"><span>Home value</span><span id="bs-home-value">—</span></div>
+          <div style="display:flex; justify-content:space-between; font-size:13px; padding:3px 0; color:var(--color-text-secondary);"><span>Mortgage balance</span><span id="bs-mortgage-balance">—</span></div>
+          <div style="display:flex; justify-content:space-between; font-size:13px; font-weight:500; padding-top:4px; border-top:0.5px solid var(--color-border); margin-top:4px;"><span>Equity</span><span id="bs-equity">—</span></div>
         </div>
       </div>
     </div>
 
-    <div id="bs-as-of" style="font-size:12px; color:var(--color-text-tertiary); margin-top:1rem; text-align:right;"></div>
+    <div id="bs-as-of" style="font-size:11px; color:var(--color-text-tertiary); margin-top:0.75rem; text-align:right;"></div>
   </div>
 
   <!-- Cash Flow -->
@@ -569,6 +545,7 @@
               <option value="savings">Savings</option>
               <option value="investment">Investment / brokerage</option>
               <option value="retirement">Retirement (401k / IRA)</option>
+              <option value="529">529 (education savings)</option>
               <option value="real_estate">Real estate</option>
               <option value="mortgage">Mortgage</option>
               <option value="credit_card">Credit card</option>
@@ -584,12 +561,20 @@
           </div>
         </div>
         <div class="form-row">
-          <div class="form-group full">
+          <div class="form-group" id="acc-limit-group" style="display:none;">
+            <label>Credit / HELOC limit ($)</label>
+            <input type="number" id="acc-limit" placeholder="0" step="100" />
+          </div>
+          <div class="form-group">
             <label>Notes (optional)</label>
             <input type="text" id="acc-notes" placeholder="Any notes about this account" />
           </div>
         </div>
-        <button class="btn btn-primary" onclick="addAccount()"><i class="ti ti-plus"></i> Add account</button>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <button class="btn btn-primary" id="acc-save-btn" onclick="saveAccount()"><i class="ti ti-plus"></i> Add account</button>
+          <button class="btn btn-secondary" id="acc-cancel-btn" onclick="cancelAccountEdit()" style="display:none;">Cancel</button>
+        </div>
+        <input type="hidden" id="acc-editing-id" value="" />
         <div id="acc-status" class="status"></div>
       </div>
 
@@ -800,22 +785,57 @@
   }
 
   const liabilityTypes = ['mortgage', 'credit_card', 'loan'];
+  const limitTypes = ['credit_card', 'loan'];
   function autoCategory() {
     const type = document.getElementById('acc-type').value;
     document.getElementById('acc-category').value = liabilityTypes.includes(type) ? 'liability' : 'asset';
+    document.getElementById('acc-limit-group').style.display = limitTypes.includes(type) ? 'flex' : 'none';
   }
 
-  async function addAccount() {
+  function editAccount(a) {
+    document.getElementById('acc-name').value = a.name;
+    document.getElementById('acc-institution').value = a.institution || '';
+    document.getElementById('acc-type').value = a.type;
+    document.getElementById('acc-category').value = a.category;
+    document.getElementById('acc-notes').value = a.notes || '';
+    document.getElementById('acc-limit').value = a.credit_limit || '';
+    document.getElementById('acc-editing-id').value = a.id;
+    document.getElementById('acc-save-btn').innerHTML = '<i class="ti ti-device-floppy"></i> Save changes';
+    document.getElementById('acc-cancel-btn').style.display = 'inline-flex';
+    autoCategory();
+    window.scrollTo({top:0, behavior:'smooth'});
+  }
+
+  function cancelAccountEdit() {
+    document.getElementById('acc-editing-id').value = '';
+    document.getElementById('acc-save-btn').innerHTML = '<i class="ti ti-plus"></i> Add account';
+    document.getElementById('acc-cancel-btn').style.display = 'none';
+    ['acc-name','acc-institution','acc-notes','acc-limit'].forEach(id => document.getElementById(id).value = '');
+  }
+
+  async function saveAccount() {
     const name = document.getElementById('acc-name').value.trim();
     const institution = document.getElementById('acc-institution').value.trim();
     const type = document.getElementById('acc-type').value;
     const category = document.getElementById('acc-category').value;
     const notes = document.getElementById('acc-notes').value.trim();
+    const credit_limit = parseFloat(document.getElementById('acc-limit').value) || null;
+    const editingId = document.getElementById('acc-editing-id').value;
     if (!name) return setStatus('acc-status', 'Account name is required.', 'error');
     try {
-      await sb('accounts', 'POST', { name, institution, type, category, notes });
-      setStatus('acc-status', 'Account added.', 'success');
-      ['acc-name', 'acc-institution', 'acc-notes'].forEach(id => document.getElementById(id).value = '');
+      if (editingId) {
+        await fetch(`${SUPABASE_URL}/rest/v1/accounts?id=eq.${editingId}`, {
+          method: 'PATCH',
+          headers: { ...sbHeaders, 'Prefer': 'return=minimal' },
+          body: JSON.stringify({ name, institution, type, category, notes, credit_limit })
+        });
+        setStatus('acc-status', 'Account updated.', 'success');
+        cancelAccountEdit();
+      } else {
+        await sb('accounts', 'POST', { name, institution, type, category, notes, credit_limit });
+        setStatus('acc-status', 'Account added.', 'success');
+        ['acc-name','acc-institution','acc-notes','acc-limit'].forEach(id => document.getElementById(id).value = '');
+      }
       loadAccounts();
     } catch (e) { setStatus('acc-status', 'Error: ' + e.message, 'error'); }
   }
@@ -830,10 +850,12 @@
           <div>
             <span style="font-weight:500;">${a.name}</span>
             ${a.institution ? `<span style="color:var(--color-text-secondary); margin-left:8px; font-size:13px;">${a.institution}</span>` : ''}
+            ${a.credit_limit ? `<span style="font-size:12px; color:var(--color-text-tertiary); margin-left:8px;">limit $${Math.round(a.credit_limit).toLocaleString()}</span>` : ''}
           </div>
           <div style="display:flex; align-items:center; gap:8px;">
             <span class="badge">${a.type.replace(/_/g,' ')}</span>
             <span style="font-size:12px; color:${a.category === 'asset' ? 'var(--color-success-text)' : 'var(--color-danger-text)'};">${a.category}</span>
+            <button class="btn btn-secondary" style="padding:3px 8px; font-size:12px;" onclick='editAccount(${JSON.stringify(a)})'>Edit</button>
           </div>
         </div>`).join('');
     } catch (e) { console.error(e); }
@@ -861,6 +883,8 @@
   }
 
   function renderSnapGrid() {
+    // snapGridMode[accountId] = 'new' or 'edit'
+    if (!window.snapGridMode) window.snapGridMode = {};
     const today = new Date().toISOString().split('T')[0];
     const typeLabel = t => t.replace(/_/g,' ');
     const sourceOpts = (val) => ['manual','advisor_import','ynab_import'].map(s =>
@@ -884,38 +908,41 @@
       const edit = snapGridEdits[a.id] || {};
       const newRow = snapGridNew[a.id] || {};
 
-      // Existing row (shaded)
-      if (latest) {
-        const editDate = edit.date ?? latest.as_of_date;
-        const editBal = edit.balance ?? latest.balance;
-        const editSrc = edit.source ?? latest.source ?? 'manual';
-        html += `<tr style="${ROW_STYLE} border-bottom:0.5px solid var(--color-border);">
-          <td style="padding:4px 10px; font-weight:500;">${a.name}${a.institution?`<span style="font-size:11px;color:var(--color-text-tertiary);margin-left:6px;">${a.institution}</span>`:''}</td>
-          <td style="padding:4px 10px; color:var(--color-text-secondary); font-size:12px;">${typeLabel(a.type)}</td>
-          <td style="padding:4px 6px;"><input type="date" value="${editDate}" style="${INPUT_STYLE}" onchange="snapEditExisting('${a.id}','date',this.value)" /></td>
-          <td style="padding:4px 6px;"><input type="number" value="${editBal}" step="0.01" style="${INPUT_STYLE} text-align:right;" onchange="snapEditExisting('${a.id}','balance',this.value)" /></td>
-          <td style="padding:4px 6px;"><select style="${SELECT_STYLE}" onchange="snapEditExisting('${a.id}','source',this.value)">${sourceOpts(editSrc)}</select></td>
-          <td style="padding:4px 6px; text-align:center;"><span style="font-size:11px; color:var(--color-text-tertiary);">edit</span></td>
-        </tr>`;
-      } else {
-        html += `<tr style="${ROW_STYLE} border-bottom:0.5px solid var(--color-border);">
-          <td style="padding:4px 10px; font-weight:500; color:var(--color-text-tertiary);">${a.name}${a.institution?`<span style="font-size:11px;color:var(--color-text-tertiary);margin-left:6px;">${a.institution}</span>`:''}</td>
-          <td style="padding:4px 10px; color:var(--color-text-tertiary); font-size:12px;">${typeLabel(a.type)}</td>
-          <td colspan="3" style="padding:4px 10px; font-size:12px; color:var(--color-text-tertiary);">no snapshot yet</td>
-          <td></td>
-        </tr>`;
-      }
+      const mode = window.snapGridMode[a.id] || (latest ? 'edit' : 'new');
+      const isEdit = mode === 'edit';
+      const rowData = isEdit ? (edit.date ? edit : (latest || {})) : newRow;
+      const rowDate = isEdit ? (edit.date ?? latest?.as_of_date ?? today) : (newRow.date ?? today);
+      const rowBal  = isEdit ? (edit.balance !== undefined ? edit.balance : (latest?.balance ?? '')) : (newRow.balance ?? '');
+      const rowSrc  = isEdit ? (edit.source ?? latest?.source ?? 'manual') : (newRow.source ?? 'manual');
+      const zeroChecked = isEdit ? (edit.allowZero || false) : (newRow.allowZero || false);
 
-      // New row (white)
-      const newDate = newRow.date ?? today;
-      const newBal = newRow.balance ?? '';
-      const newSrc = newRow.source ?? 'manual';
+      const latestDisplay = latest
+        ? `<span style="font-size:11px;color:var(--color-text-tertiary);margin-left:8px;">last: $${Math.round(latest.balance).toLocaleString()} on ${latest.as_of_date}</span>`
+        : `<span style="font-size:11px;color:var(--color-danger-text);margin-left:8px;">no snapshot yet</span>`;
+
       html += `<tr style="border-bottom:1px solid var(--color-border-md);">
-        <td style="padding:4px 10px; color:var(--color-text-tertiary); font-size:12px; padding-left:20px;">↳ new entry</td>
-        <td style="padding:4px 10px;"></td>
-        <td style="padding:4px 6px;"><input type="date" value="${newDate}" style="${INPUT_STYLE}" onchange="snapEditNew('${a.id}','date',this.value)" /></td>
-        <td style="padding:4px 6px;"><input type="number" value="${newBal}" placeholder="0.00" step="0.01" style="${INPUT_STYLE} text-align:right;" onchange="snapEditNew('${a.id}','balance',this.value)" /></td>
-        <td style="padding:4px 6px;"><select style="${SELECT_STYLE}" onchange="snapEditNew('${a.id}','source',this.value)">${sourceOpts(newSrc)}</select></td>
+        <td style="padding:4px 10px;">
+          <span style="font-weight:500;">${a.name}</span>${a.institution?`<span style="font-size:11px;color:var(--color-text-tertiary);margin-left:6px;">${a.institution}</span>`:''}
+          ${latestDisplay}
+        </td>
+        <td style="padding:4px 6px;">
+          <label style="font-size:11px; display:flex; align-items:center; gap:4px; cursor:pointer; white-space:nowrap;">
+            <input type="radio" name="snap-mode-${a.id}" value="edit" ${isEdit?'checked':''} ${!latest?'disabled':''} onchange="setSnapMode('${a.id}','edit')" style="margin:0;" />
+            update
+          </label>
+          <label style="font-size:11px; display:flex; align-items:center; gap:4px; cursor:pointer; white-space:nowrap;">
+            <input type="radio" name="snap-mode-${a.id}" value="new" ${!isEdit?'checked':''} onchange="setSnapMode('${a.id}','new')" style="margin:0;" />
+            new entry
+          </label>
+        </td>
+        <td style="padding:4px 6px;"><input type="date" value="${rowDate}" style="${INPUT_STYLE}" onchange="snapSetField('${a.id}','date',this.value)" /></td>
+        <td style="padding:4px 6px;">
+          <input type="number" value="${rowBal}" placeholder="0.00" step="0.01" style="${INPUT_STYLE} text-align:right;" onchange="snapSetField('${a.id}','balance',this.value)" />
+          <label style="font-size:10px; display:flex; align-items:center; gap:3px; margin-top:2px; cursor:pointer;">
+            <input type="checkbox" ${zeroChecked?'checked':''} onchange="snapSetField('${a.id}','allowZero',this.checked)" style="margin:0;" /> include $0
+          </label>
+        </td>
+        <td style="padding:4px 6px;"><select style="${SELECT_STYLE}" onchange="snapSetField('${a.id}','source',this.value)">${sourceOpts(rowSrc)}</select></td>
         <td style="padding:4px 6px;"></td>
       </tr>`;
     }
@@ -923,59 +950,73 @@
     document.getElementById('snap-grid-body').innerHTML = html;
   }
 
-  function snapEditExisting(accountId, field, value) {
-    if (!snapGridEdits[accountId]) {
-      const latest = snapGridLatest[accountId];
-      snapGridEdits[accountId] = { id: latest.id, date: latest.as_of_date, balance: latest.balance, source: latest.source||'manual' };
-    }
-    snapGridEdits[accountId][field] = value;
+  function setSnapMode(accountId, mode) {
+    if (!window.snapGridMode) window.snapGridMode = {};
+    window.snapGridMode[accountId] = mode;
+    // Don't re-render — just track mode; saveAllSnapshots reads it
   }
 
-  function snapEditNew(accountId, field, value) {
-    if (!snapGridNew[accountId]) snapGridNew[accountId] = { date: new Date().toISOString().split('T')[0], balance: '', source: 'manual' };
-    snapGridNew[accountId][field] = value;
+  function snapSetField(accountId, field, value) {
+    const mode = (window.snapGridMode || {})[accountId] || (snapGridLatest[accountId] ? 'edit' : 'new');
+    if (mode === 'edit') {
+      if (!snapGridEdits[accountId]) {
+        const l = snapGridLatest[accountId];
+        snapGridEdits[accountId] = { id: l.id, date: l.as_of_date, balance: l.balance, source: l.source||'manual', allowZero: false };
+      }
+      snapGridEdits[accountId][field] = value;
+    } else {
+      if (!snapGridNew[accountId]) snapGridNew[accountId] = { date: new Date().toISOString().split('T')[0], balance: '', source: 'manual', allowZero: false };
+      snapGridNew[accountId][field] = value;
+    }
   }
 
   async function saveAllSnapshots() {
     let saved = 0, errors = 0;
     const today = new Date().toISOString().split('T')[0];
+    const modes = window.snapGridMode || {};
 
-    // Save edits to existing rows (PATCH)
-    for (const [accountId, edit] of Object.entries(snapGridEdits)) {
-      const latest = snapGridLatest[accountId];
-      if (!latest) continue;
-      const balance = parseFloat(edit.balance);
-      if (isNaN(balance)) continue;
-      try {
-        await fetch(`${SUPABASE_URL}/rest/v1/account_snapshots?id=eq.${latest.id}`, {
-          method: 'PATCH',
-          headers: { ...sbHeaders, 'Prefer': 'return=minimal' },
-          body: JSON.stringify({ balance, as_of_date: edit.date, source: edit.source })
-        });
-        saved++;
-      } catch(e) { errors++; }
-    }
+    for (const a of snapGridAccounts) {
+      const mode = modes[a.id] || (snapGridLatest[a.id] ? 'edit' : 'new');
+      const latest = snapGridLatest[a.id];
 
-    // Save new rows (POST) — only if balance is filled in
-    for (const [accountId, newRow] of Object.entries(snapGridNew)) {
-      const balance = parseFloat(newRow.balance);
-      if (isNaN(balance) || newRow.balance === '') continue;
-      try {
-        await sb('account_snapshots', 'POST', {
-          account_id: accountId,
-          as_of_date: newRow.date || today,
-          balance,
-          source: newRow.source || 'manual'
-        });
-        saved++;
-      } catch(e) { errors++; }
+      if (mode === 'edit' && snapGridEdits[a.id]) {
+        const edit = snapGridEdits[a.id];
+        const balance = parseFloat(edit.balance);
+        if (!latest) continue;
+        if (isNaN(balance) && !edit.allowZero) continue;
+        const finalBal = edit.allowZero && isNaN(balance) ? 0 : balance;
+        try {
+          await fetch(`${SUPABASE_URL}/rest/v1/account_snapshots?id=eq.${latest.id}`, {
+            method: 'PATCH',
+            headers: { ...sbHeaders, 'Prefer': 'return=minimal' },
+            body: JSON.stringify({ balance: finalBal, as_of_date: edit.date || latest.as_of_date, source: edit.source || 'manual' })
+          });
+          saved++;
+        } catch(e) { errors++; }
+      } else if (mode === 'new' && snapGridNew[a.id]) {
+        const newRow = snapGridNew[a.id];
+        const balance = parseFloat(newRow.balance);
+        const hasBalance = !isNaN(balance);
+        const allowZero = newRow.allowZero;
+        if (!hasBalance && !allowZero) continue;
+        const finalBal = allowZero && !hasBalance ? 0 : balance;
+        try {
+          await sb('account_snapshots', 'POST', {
+            account_id: a.id,
+            as_of_date: newRow.date || today,
+            balance: finalBal,
+            source: newRow.source || 'manual'
+          });
+          saved++;
+        } catch(e) { errors++; }
+      }
     }
 
     if (errors) setStatus('snap-status', `Saved ${saved} entries, ${errors} errors.`, 'error');
     else if (saved) setStatus('snap-status', `Saved ${saved} entries.`, 'success');
-    else setStatus('snap-status', 'No changes to save — fill in a new balance row to add an entry.', 'error');
+    else setStatus('snap-status', 'No changes to save — fill in balances or check "include $0" to save a zero balance.', 'error');
 
-    if (saved) await loadSnapGrid();
+    if (saved) { window.snapGridMode = {}; await loadSnapGrid(); }
   }
 
   async function addSnapshot() { /* legacy — replaced by grid */ }
@@ -2277,114 +2318,100 @@
 
   // ── Balance Sheet ─────────────────────────────────────────
   async function initBalanceSheet() {
-    // Load all active accounts with their most recent snapshot
     const accounts = await sb('accounts?is_active=eq.true&order=type,name');
-    if (!accounts.length) {
-      document.getElementById('bs-as-of').textContent = 'No accounts found. Add accounts in Admin first.';
-      return;
-    }
+    if (!accounts.length) { document.getElementById('bs-as-of').textContent = 'No accounts found. Add accounts in Admin first.'; return; }
 
-    // Load most recent snapshot per account
     const snapshots = await sb('account_snapshots?order=account_id,as_of_date.desc');
-    const latestSnap = {};
-    const latestDate = {};
+    const latestSnap = {}, latestDate = {};
     for (const s of snapshots) {
-      if (!latestSnap[s.account_id]) {
-        latestSnap[s.account_id] = s.balance;
-        latestDate[s.account_id] = s.as_of_date;
-      }
+      if (!latestSnap[s.account_id]) { latestSnap[s.account_id] = s.balance; latestDate[s.account_id] = s.as_of_date; }
     }
 
     const fmt = v => '$' + Math.round(Math.abs(v)).toLocaleString();
-    const fmtDate = d => new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+    const fmtDate = d => new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'});
 
-    // Group accounts
     const groups = {
-      cash:       { types: ['checking','savings'],    accounts: [] },
-      investment: { types: ['investment'],             accounts: [] },
-      retirement: { types: ['retirement'],             accounts: [] },
-      realestate: { types: ['real_estate'],            accounts: [] },
-      cc:         { types: ['credit_card'],            accounts: [] },
-      loans:      { types: ['loan'],                   accounts: [] },
-      mortgage:   { types: ['mortgage'],               accounts: [] },
+      cash:       { types: ['checking','savings'],  accounts: [] },
+      investment: { types: ['investment'],           accounts: [] },
+      retirement: { types: ['retirement'],           accounts: [] },
+      edu529:     { types: ['529'],                  accounts: [] },
+      realestate: { types: ['real_estate'],          accounts: [] },
+      cc:         { types: ['credit_card'],          accounts: [] },
+      loans:      { types: ['loan'],                 accounts: [] },
+      mortgage:   { types: ['mortgage'],             accounts: [] },
     };
 
     for (const a of accounts) {
       for (const [key, g] of Object.entries(groups)) {
-        if (g.types.includes(a.type)) {
-          g.accounts.push({ ...a, balance: latestSnap[a.id] ?? null, as_of: latestDate[a.id] ?? null });
-        }
+        if (g.types.includes(a.type)) g.accounts.push({ ...a, balance: latestSnap[a.id]??null, as_of: latestDate[a.id]??null });
       }
     }
 
-    // Render a group of accounts into a container
-    function renderRows(containerId, subtotalId, accts, isLiability) {
-      const rowEl = document.getElementById(containerId);
-      const totEl = document.getElementById(subtotalId);
-      if (!accts.length) {
-        rowEl.innerHTML = '<p style="font-size:13px; color:var(--color-text-tertiary); padding:4px 0;">No accounts.</p>';
-        totEl.textContent = '—';
-        return 0;
-      }
-      let total = 0;
+    function renderRows(rowId, totId, availId, accts, isLiability) {
+      const rowEl = document.getElementById(rowId);
+      const totEl = document.getElementById(totId);
+      const availEl = availId ? document.getElementById(availId) : null;
+      if (!accts.length) { rowEl.innerHTML = '<p style="font-size:12px;color:var(--color-text-tertiary);padding:2px 0;">No accounts.</p>'; if(totEl)totEl.textContent='—'; if(availEl)availEl.textContent='—'; return {total:0,avail:0}; }
+      let total = 0, availCredit = 0;
       rowEl.innerHTML = accts.map(a => {
-        const bal = a.balance;
-        const hasSnap = bal !== null;
+        const bal = a.balance, hasSnap = bal !== null;
         const display = hasSnap ? fmt(bal) : '—';
-        const dateLabel = a.as_of ? `<span style="font-size:11px; color:var(--color-text-tertiary); margin-left:6px;">${fmtDate(a.as_of)}</span>` : '<span style="font-size:11px; color:var(--color-danger-text); margin-left:6px;">no snapshot</span>';
+        const dateLabel = a.as_of ? `<span style="font-size:10px;color:var(--color-text-tertiary);margin-left:4px;">${fmtDate(a.as_of)}</span>` : '<span style="font-size:10px;color:var(--color-danger-text);margin-left:4px;">no snapshot</span>';
         if (hasSnap) total += bal;
-        return `<div class="list-row">
-          <div>
-            <span style="font-size:14px;">${a.name}</span>
-            ${a.institution ? `<span style="font-size:12px; color:var(--color-text-tertiary); margin-left:6px;">${a.institution}</span>` : ''}
-            ${dateLabel}
-          </div>
-          <span style="font-weight:500; color:${isLiability?'var(--color-danger-text)':'inherit'}">${display}</span>
+        const limitLine = a.credit_limit ? (() => {
+          const avail = a.credit_limit - (bal||0);
+          availCredit += Math.max(0, avail);
+          return `<span style="font-size:10px;color:var(--color-text-tertiary);margin-left:4px;">avail $${Math.round(Math.max(0,avail)).toLocaleString()} of $${Math.round(a.credit_limit).toLocaleString()}</span>`;
+        })() : '';
+        return `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:3px 0;border-bottom:0.5px solid var(--color-border);font-size:13px;">
+          <div><span>${a.name}</span>${a.institution?`<span style="font-size:10px;color:var(--color-text-tertiary);margin-left:4px;">${a.institution}</span>`:''}${dateLabel}${limitLine}</div>
+          <span style="font-weight:500;color:${isLiability?'var(--color-danger-text)':'inherit'};margin-left:8px;white-space:nowrap;">${display}</span>
         </div>`;
       }).join('');
-      totEl.textContent = fmt(total);
-      return total;
+      if(totEl) totEl.textContent = fmt(total);
+      if(availEl) availEl.textContent = availCredit > 0 ? fmt(availCredit) : '—';
+      return { total, avail: availCredit };
     }
 
-    const cashTotal       = renderRows('bs-cash-rows',        'bs-cash-total',        groups.cash.accounts,       false);
-    const investTotal     = renderRows('bs-investment-rows',  'bs-investment-total',  groups.investment.accounts, false);
-    const retireTotal     = renderRows('bs-retirement-rows',  'bs-retirement-total',  groups.retirement.accounts, false);
-    const realEstTotal    = renderRows('bs-realestate-rows',  'bs-realestate-total',  groups.realestate.accounts, false);
-    const ccTotal         = renderRows('bs-cc-rows',          'bs-cc-total',          groups.cc.accounts,         true);
-    const loansTotal      = renderRows('bs-loans-rows',       'bs-loans-total',       groups.loans.accounts,      true);
-    const mortgageTotal   = renderRows('bs-mortgage-rows',    'bs-mortgage-total',    groups.mortgage.accounts,   true);
+    const cash    = renderRows('bs-cash-rows',       'bs-cash-total',       null,            groups.cash.accounts,       false);
+    const invest  = renderRows('bs-investment-rows', 'bs-investment-total', null,            groups.investment.accounts, false);
+    const retire  = renderRows('bs-retirement-rows', 'bs-retirement-total', null,            groups.retirement.accounts, false);
+    const edu     = renderRows('bs-529-rows',        'bs-529-total',        null,            groups.edu529.accounts,     false);
+    const reale   = renderRows('bs-realestate-rows', 'bs-realestate-total', null,            groups.realestate.accounts, false);
+    const cc      = renderRows('bs-cc-rows',         'bs-cc-total',         'bs-cc-avail',   groups.cc.accounts,         true);
+    const loans   = renderRows('bs-loans-rows',      'bs-loans-total',      'bs-loans-avail',groups.loans.accounts,      true);
+    const mort    = renderRows('bs-mortgage-rows',   'bs-mortgage-total',   null,            groups.mortgage.accounts,   true);
 
-    const totalAssets      = cashTotal + investTotal + retireTotal + realEstTotal;
-    const totalLiabilities = ccTotal + loansTotal + mortgageTotal;
-    const netWorth         = totalAssets - totalLiabilities;
-    const liquid           = cashTotal + investTotal;
+    // Hide 529 card if no accounts
+    const card529 = document.getElementById('bs-529-card');
+    if (card529) card529.style.display = groups.edu529.accounts.length ? 'block' : 'none';
 
-    // Home equity callout
-    const homeVal = groups.realestate.accounts.reduce((s,a) => s + (a.balance||0), 0);
-    const mortBal = groups.mortgage.accounts.reduce((s,a) => s + (a.balance||0), 0);
+    const totalAssets = cash.total + invest.total + retire.total + edu.total + reale.total;
+    const totalLiab   = cc.total + loans.total + mort.total;
+    const netWorth    = totalAssets - totalLiab;
+    const liquid      = cash.total + invest.total;
+    const availCred   = cc.avail + loans.avail;
+
+    // Home equity
+    const homeVal = groups.realestate.accounts.reduce((s,a)=>s+(a.balance||0),0);
+    const mortBal = groups.mortgage.accounts.reduce((s,a)=>s+(a.balance||0),0);
     const equity  = homeVal - mortBal;
-    document.getElementById('bs-home-value').textContent     = homeVal > 0 ? fmt(homeVal) : '—';
-    document.getElementById('bs-mortgage-balance').textContent = mortBal > 0 ? fmt(mortBal) : '—';
-    document.getElementById('bs-equity').textContent         = homeVal > 0 || mortBal > 0 ? fmt(equity) : '—';
-    document.getElementById('bs-equity').style.color        = equity >= 0 ? 'var(--color-success-text)' : 'var(--color-danger-text)';
+    document.getElementById('bs-home-value').textContent = homeVal>0?fmt(homeVal):'—';
+    document.getElementById('bs-mortgage-balance').textContent = mortBal>0?fmt(mortBal):'—';
+    document.getElementById('bs-equity').textContent = (homeVal>0||mortBal>0)?((equity>=0?'':'-')+fmt(equity)):'—';
+    document.getElementById('bs-equity').style.color = equity>=0?'var(--color-success-text)':'var(--color-danger-text)';
 
-    // Metrics
-    document.getElementById('bs-total-assets').textContent      = fmt(totalAssets);
-    document.getElementById('bs-total-assets').style.color      = 'var(--color-success-text)';
-    document.getElementById('bs-total-liabilities').textContent = fmt(totalLiabilities);
-    document.getElementById('bs-total-liabilities').style.color = 'var(--color-danger-text)';
-    document.getElementById('bs-net-worth').textContent         = (netWorth >= 0 ? '' : '-') + fmt(netWorth);
-    document.getElementById('bs-net-worth').style.color        = netWorth >= 0 ? 'var(--color-success-text)' : 'var(--color-danger-text)';
-    document.getElementById('bs-liquid').textContent            = fmt(liquid);
+    const setMetric = (id, val, color) => { const el=document.getElementById(id); el.textContent=val; if(color)el.style.color=color; };
+    setMetric('bs-total-assets',      fmt(totalAssets), 'var(--color-success-text)');
+    setMetric('bs-total-liabilities', fmt(totalLiab),   'var(--color-danger-text)');
+    setMetric('bs-net-worth',         (netWorth>=0?'':'-')+fmt(netWorth), netWorth>=0?'var(--color-success-text)':'var(--color-danger-text)');
+    setMetric('bs-liquid',            fmt(liquid), null);
+    setMetric('bs-avail-credit',      availCred>0?fmt(availCred):'—', null);
 
-    // Dates footer
     const allDates = Object.values(latestDate).filter(Boolean).sort();
     if (allDates.length) {
-      const oldest = fmtDate(allDates[0]);
-      const newest = fmtDate(allDates[allDates.length-1]);
-      document.getElementById('bs-as-of').textContent = oldest === newest
-        ? `Balances as of ${newest}`
-        : `Balances as of ${oldest} – ${newest} (most recent per account)`;
+      const oldest = fmtDate(allDates[0]), newest = fmtDate(allDates[allDates.length-1]);
+      document.getElementById('bs-as-of').textContent = oldest===newest ? `As of ${newest}` : `As of ${oldest} – ${newest} (most recent per account)`;
     }
   }
 
