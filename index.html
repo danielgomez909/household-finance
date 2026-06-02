@@ -908,13 +908,13 @@
       const edit = snapGridEdits[a.id] || {};
       const newRow = snapGridNew[a.id] || {};
 
-      const mode = window.snapGridMode[a.id] || (latest ? 'edit' : 'new');
+      const mode = window.snapGridMode[a.id] || 'none';
       const isEdit = mode === 'edit';
-      const rowData = isEdit ? (edit.date ? edit : (latest || {})) : newRow;
-      const rowDate = isEdit ? (edit.date ?? latest?.as_of_date ?? today) : (newRow.date ?? today);
-      const rowBal  = isEdit ? (edit.balance !== undefined ? edit.balance : (latest?.balance ?? '')) : (newRow.balance ?? '');
-      const rowSrc  = isEdit ? (edit.source ?? latest?.source ?? 'manual') : (newRow.source ?? 'manual');
-      const zeroChecked = isEdit ? (edit.allowZero || false) : (newRow.allowZero || false);
+      const isNew = mode === 'new';
+      const rowDate = isEdit ? (edit.date ?? latest?.as_of_date ?? today) : (isNew ? (newRow.date ?? today) : (latest?.as_of_date ?? today));
+      const rowBal  = isEdit ? (edit.balance !== undefined ? edit.balance : (latest?.balance ?? '')) : (isNew ? (newRow.balance ?? '') : (latest?.balance ?? ''));
+      const rowSrc  = isEdit ? (edit.source ?? latest?.source ?? 'manual') : (isNew ? (newRow.source ?? 'manual') : (latest?.source ?? 'manual'));
+      const zeroChecked = isEdit ? (edit.allowZero || false) : (isNew ? (newRow.allowZero || false) : false);
 
       const latestDisplay = latest
         ? `<span style="font-size:11px;color:var(--color-text-tertiary);margin-left:8px;">last: $${Math.round(latest.balance).toLocaleString()} on ${latest.as_of_date}</span>`
@@ -926,14 +926,11 @@
           ${latestDisplay}
         </td>
         <td style="padding:4px 6px;">
-          <label style="font-size:11px; display:flex; align-items:center; gap:4px; cursor:pointer; white-space:nowrap;">
-            <input type="radio" name="snap-mode-${a.id}" value="edit" ${isEdit?'checked':''} ${!latest?'disabled':''} onchange="setSnapMode('${a.id}','edit')" style="margin:0;" />
-            update
-          </label>
-          <label style="font-size:11px; display:flex; align-items:center; gap:4px; cursor:pointer; white-space:nowrap;">
-            <input type="radio" name="snap-mode-${a.id}" value="new" ${!isEdit?'checked':''} onchange="setSnapMode('${a.id}','new')" style="margin:0;" />
-            new entry
-          </label>
+          <select style="font-family:inherit; font-size:12px; padding:3px 4px; border:0.5px solid var(--color-border-md); border-radius:4px; background:var(--color-bg); color:var(--color-text-primary); width:100%;" onchange="setSnapMode('${a.id}',this.value)">
+            <option value="none" selected>no action</option>
+            <option value="edit" ${!latest?'disabled':''}>update</option>
+            <option value="new">new entry</option>
+          </select>
         </td>
         <td style="padding:4px 6px;"><input type="date" value="${rowDate}" style="${INPUT_STYLE}" onchange="snapSetField('${a.id}','date',this.value)" /></td>
         <td style="padding:4px 6px;">
@@ -976,7 +973,8 @@
     const modes = window.snapGridMode || {};
 
     for (const a of snapGridAccounts) {
-      const mode = modes[a.id] || (snapGridLatest[a.id] ? 'edit' : 'new');
+      const mode = modes[a.id] || 'none';
+      if (mode === 'none') continue;
       const latest = snapGridLatest[a.id];
 
       if (mode === 'edit' && snapGridEdits[a.id]) {
@@ -1017,6 +1015,7 @@
     else setStatus('snap-status', 'No changes to save — fill in balances or check "include $0" to save a zero balance.', 'error');
 
     if (saved) { window.snapGridMode = {}; await loadSnapGrid(); }
+    else if (!errors) { /* no action rows — that's fine */ }
   }
 
   async function addSnapshot() { /* legacy — replaced by grid */ }
