@@ -308,6 +308,12 @@
       <div class="metric-card"><div class="metric-label">Available credit</div><div class="metric-value" style="font-size:18px;" id="bs-avail-credit">—</div></div>
     </div>
 
+    <div style="margin-bottom:1rem;">
+      <textarea id="bs-notes" placeholder="Notes / headlines for this balance sheet snapshot (e.g. does not include life insurance accounts)..."
+        style="width:100%; font-family:inherit; font-size:13px; padding:8px 10px; border:0.5px solid var(--color-border-md); border-radius:var(--radius-md); background:var(--color-bg); color:var(--color-text-primary); resize:vertical; min-height:52px; line-height:1.5;"
+        onblur="saveBsNotes()"></textarea>
+    </div>
+
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
 
       <!-- Assets -->
@@ -2412,6 +2418,23 @@
       const oldest = fmtDate(allDates[0]), newest = fmtDate(allDates[allDates.length-1]);
       document.getElementById('bs-as-of').textContent = oldest===newest ? `As of ${newest}` : `As of ${oldest} – ${newest} (most recent per account)`;
     }
+
+    // Load notes
+    try {
+      const noteRow = await sb('settings?key=eq.bs_notes');
+      document.getElementById('bs-notes').value = noteRow.length ? noteRow[0].value : '';
+    } catch(e) { /* ignore */ }
+  }
+
+  async function saveBsNotes() {
+    const value = document.getElementById('bs-notes').value;
+    try {
+      await fetch(SUPABASE_URL + '/rest/v1/settings', {
+        method: 'POST',
+        headers: { ...sbHeaders, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify({ key: 'bs_notes', value, updated_at: new Date().toISOString() })
+      });
+    } catch(e) { console.error('Failed to save notes', e); }
   }
 
 </script>
