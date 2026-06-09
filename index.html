@@ -878,7 +878,7 @@
 
   async function loadSnapGrid() {
     snapGridAccounts = await sb('accounts?is_active=eq.true&order=type,name');
-    const snaps = await sb('account_snapshots?order=account_id,as_of_date.desc');
+    const snaps = await sb('account_snapshots?order=as_of_date.desc,created_at.desc');
     snapGridLatest = {};
     for (const s of snaps) {
       if (!snapGridLatest[s.account_id]) snapGridLatest[s.account_id] = s;
@@ -1162,10 +1162,36 @@
   function getMonthsForPeriod(period, allMonths) {
     const sorted = [...allMonths].sort();
     const now = new Date();
-    const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
-    if (period === 'month') return sorted.filter(m => m === thisMonth || sorted[sorted.length-1] === m).slice(-1);
-    if (period === 'ytd') { const yr = now.getFullYear(); return sorted.filter(m => m.startsWith(yr+'')); }
-    return sorted.slice(-parseInt(period));
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+
+    // Always include current partial month
+    // Count prior complete months from the month before current
+    if (period === 'month') {
+      return sorted.filter(m => m === currentMonth);
+    }
+    if (period === 'ytd') {
+      const yr = now.getFullYear();
+      return sorted.filter(m => m.startsWith(yr+''));
+    }
+    // For 3/6/12: include N complete months before current + current partial
+    const n = parseInt(period);
+    // Find the start month: N months before current
+    const startDate = new Date(now.getFullYear(), now.getMonth() - n, 1);
+    const startMonth = `${startDate.getFullYear()}-${String(startDate.getMonth()+1).padStart(2,'0')}-01`;
+    return sorted.filter(m => m >= startMonth);
+  }
+
+  function getPeriodStartDate(period) {
+    // Returns the date we need a snapshot BEFORE (last day of prior month)
+    const now = new Date();
+    if (period === 'month') {
+      return new Date(now.getFullYear(), now.getMonth(), 0); // last day of prior month
+    }
+    if (period === 'ytd') {
+      return new Date(now.getFullYear() - 1, 11, 31); // Dec 31 prior year
+    }
+    const n = parseInt(period);
+    return new Date(now.getFullYear(), now.getMonth() - n, 0); // last day of month before window
   }
 
   function detectThreePaycheck(monthIncome) {
@@ -1179,9 +1205,51 @@
     return flagged;
   }
 
+  let cfSnapshots = [];   // account_snapshots for checking/savings
+  let cfAccounts = [];    // accounts with credit_limit
+
   async function loadCashFlowData() {
-    const rows = await sb('transactions?source=eq.ynab_import&order=month,category_group,category');
-    cfData = rows;
+    cfData = await sb('transactions?source=eq.ynab_import&order=month,category_group,category');
+    // Load checking + savings snapshots for running balance
+    cfSnapshots = await sb('account_snapshots?order=as_of_date.desc,created_at.desc');
+    // Load accounts for credit limit info
+    cfAccounts = await sb('accounts?is_active=eq.true');
+  }
+
+  function getStartingCashBalance(periodStartDate) {
+    // Find checking + savings accounts
+    const cashAccountIds = new Set(
+      cfAccounts.filter(a => a.type === 'checking' || a.type === 'savings').map(a => a.id)
+    );
+    // Find most recent snapshot on or before periodStartDate for each cash account
+    const latestPerAccount = {};
+    for (const s of cfSnapshots) {
+      const snapDate = new Date(s.as_of_date + 'T12:00:00');
+      if (!cashAccountIds.has(s.account_id)) continue;
+      if (snapDate > periodStartDate) continue;
+      if (!latestPerAccount[s.account_id]) latestPerAccount[s.account_id] = s;
+    }
+    const found = Object.values(latestPerAccount);
+    const total = found.reduce((sum, s) => sum + s.balance, 0);
+    const missing = [...cashAccountIds].filter(id => !latestPerAccount[id]);
+    // Check if we have a snapshot close enough (within 5 days of period start)
+    const hasGoodSnapshot = found.length > 0 && found.every(s => {
+      const diff = Math.abs(new Date(s.as_of_date + 'T12:00:00') - periodStartDate);
+      return diff < 6 * 24 * 3600 * 1000; // within 5 days
+    });
+    return { total, hasGoodSnapshot, found, missingCount: missing.length };
+  }
+
+  function getAvailableCredit(asOfDate) {
+    // Credit cards only
+    const ccAccounts = cfAccounts.filter(a => a.type === 'credit_card' && a.credit_limit);
+    let totalAvail = 0;
+    for (const a of ccAccounts) {
+      const snap = cfSnapshots.find(s => s.account_id === a.id && new Date(s.as_of_date+'T12:00:00') <= asOfDate);
+      const balance = snap ? snap.balance : 0;
+      totalAvail += Math.max(0, a.credit_limit - balance);
+    }
+    return totalAvail;
   }
 
   function renderCashFlow() {
@@ -1189,15 +1257,15 @@
 
     const allMonths = [...new Set(cfData.map(r => r.month))].sort();
     const months = getMonthsForPeriod(cfPeriod, allMonths);
+    if (!months.length) { document.getElementById('cf-table-container').innerHTML = '<p class="placeholder">No data for this period.</p>'; return; }
 
     const groups = ['Bills','Frequent','Non-Monthly','Quality of Life'];
     const groupColors = { 'Bills':'#a32d2d','Frequent':'#185fa5','Non-Monthly':'#854f0b','Quality of Life':'#3b6d11' };
 
-    // Build lookup: month -> group -> category -> actual
-    // For Inflow, track by category (Slalom / Other income)
+    // Build lookup
     const lookup = {};
     const monthIncome = {};
-    const incomeCats = {}; // month -> category -> actual
+    const incomeCats = {};
     for (const r of cfData) {
       if (!months.includes(r.month)) continue;
       if (r.category_group === 'Inflow') {
@@ -1214,34 +1282,121 @@
     const threePaycheck = detectThreePaycheck(monthIncome);
     const hasOtherIncome = months.some(m => incomeCats[m] && incomeCats[m]['Other income']);
 
-    // Render chart
-    renderChart(months, monthIncome, lookup, groups, groupColors);
-
-    // Table helpers
-    const fmtMonth = m => { const d = new Date(m+'T12:00:00'); return d.toLocaleDateString('en-US',{month:'short',year:'2-digit'}); };
-    const fmt = v => v === 0 ? '—' : '$'+Math.round(Math.abs(v)).toLocaleString();
+    // Running balance setup
+    const periodStartDate = getPeriodStartDate(cfPeriod);
+    const startingCash = getStartingCashBalance(periodStartDate);
     const showTotal = months.length > 1;
     const showAvg = months.length > 1;
     const n = months.length;
 
-    // Header
-    let html = '<table class="cf-table"><thead><tr><th>Category</th>';
+    // Compute month-by-month running balance
+    let runningBal = startingCash.total;
+    const monthEndBal = {};
+    const monthOutflow = {};
+    for (const m of months) {
+      const inc = monthIncome[m]||0;
+      const spend = groups.reduce((a,g) => {
+        const cats = (lookup[m]||{})[g]||{};
+        return a + Object.values(cats).reduce((x,y)=>x+y,0);
+      }, 0);
+      monthOutflow[m] = spend;
+      runningBal += (inc - spend);
+      monthEndBal[m] = runningBal;
+    }
+
+    // Available credit per month (use most recent snapshot on or before month end)
+    const monthAvailCredit = {};
+    for (const m of months) {
+      const monthEnd = new Date(m.substring(0,7).replace('-','/')+ '/01');
+      monthEnd.setMonth(monthEnd.getMonth()+1);
+      monthEnd.setDate(0); // last day of month
+      monthAvailCredit[m] = getAvailableCredit(monthEnd);
+    }
+
+    renderChart(months, monthIncome, lookup, groups, groupColors, monthEndBal);
+
+    // Helpers
+    const fmtMonth = m => { const d = new Date(m+'T12:00:00'); return d.toLocaleDateString('en-US',{month:'short',year:'2-digit'}); };
+    const fmt = v => v === 0 ? '—' : '$'+Math.round(Math.abs(v)).toLocaleString();
+    const now = new Date();
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+
+    // Warning banner if no good starting snapshot
+    let warningHtml = '';
+    if (!startingCash.hasGoodSnapshot) {
+      const d = periodStartDate;
+      const needed = `${d.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}`;
+      warningHtml = `<div style="background:var(--color-bg-tertiary);border:0.5px solid var(--color-border-md);border-radius:var(--radius-md);padding:8px 12px;margin-bottom:10px;font-size:13px;color:var(--color-text-secondary);">
+        <i class="ti ti-alert-triangle" style="color:#854f0b;"></i>
+        Running balance starts from $0 — no checking/savings snapshot found for <strong>${needed}</strong>. Go to Admin → Record balances to add it.
+      </div>`;
+    }
+
+    // Build table
+    let html = `<table class="cf-table"><thead><tr><th>Category</th>`;
     for (const m of months) {
       let flags = '';
       if (threePaycheck.has(m)) flags += '<span class="cf-flag" title="3-paycheck month">3✓</span>';
-      if (months.some(mx => incomeCats[mx] && incomeCats[mx]['Other income']) && incomeCats[m] && incomeCats[m]['Other income'])
-        flags += '<span class="cf-flag" title="Non-Slalom income this month">★</span>';
+      if (hasOtherIncome && incomeCats[m]?.['Other income']) flags += '<span class="cf-flag" title="Non-Slalom income">★</span>';
+      if (m === currentMonth) flags += '<span class="cf-flag" style="color:var(--color-text-tertiary);" title="Partial month">~</span>';
       html += `<th>${fmtMonth(m)}${flags}</th>`;
     }
     if (showTotal) html += '<th class="cf-total-col">Total</th>';
     if (showAvg) html += '<th class="cf-total-col">Avg/mo</th>';
     html += '</tr></thead><tbody>';
 
+    // ── SUMMARY SECTION ──
+    // 1. Surplus / deficit
+    html += '<tr class="cf-row-surplus" style="border-bottom:0.5px solid var(--color-border);"><td>Surplus / deficit</td>';
+    let surplusTotal = 0;
+    for (const m of months) {
+      const inc = monthIncome[m]||0;
+      const spend = monthOutflow[m]||0;
+      const s = inc - spend;
+      surplusTotal += s;
+      html += `<td style="color:${s>=0?'var(--color-success-text)':'var(--color-danger-text)'}; font-weight:500;">${s>=0?'':'-'}${fmt(Math.abs(s))}</td>`;
+    }
+    if (showTotal) { html += `<td class="cf-total-col" style="color:${surplusTotal>=0?'var(--color-success-text)':'var(--color-danger-text)'}; font-weight:500;">${surplusTotal>=0?'':'-'}${fmt(Math.abs(surplusTotal))}</td>`; }
+    if (showAvg) { const sa=surplusTotal/n; html += `<td class="cf-total-col" style="color:${sa>=0?'var(--color-success-text)':'var(--color-danger-text)'}; font-weight:500;">${sa>=0?'':'-'}${fmt(Math.abs(sa))}</td>`; }
+    html += '</tr>';
+
+    // 2. Running cash balance
+    html += `<tr style="border-bottom:0.5px solid var(--color-border);"><td style="font-weight:500;">Cash balance <span style="font-size:11px;font-weight:400;color:var(--color-text-tertiary);">(month-end)</span></td>`;
+    for (const m of months) {
+      const bal = monthEndBal[m];
+      html += `<td style="font-weight:500; color:${bal>=0?'inherit':'var(--color-danger-text)'};">${bal>=0?'':'-'}${fmt(Math.abs(bal))}</td>`;
+    }
+    if (showTotal) html += `<td class="cf-total-col">—</td>`;
+    if (showAvg) html += `<td class="cf-total-col">—</td>`;
+    html += '</tr>';
+
+    // 3. Total outflow
+    html += '<tr style="border-bottom:1px solid var(--color-border-md);"><td style="font-weight:500;">Total outflow</td>';
+    let outflowGrandTotal = 0;
+    for (const m of months) { const v=monthOutflow[m]||0; outflowGrandTotal+=v; html+=`<td>${fmt(v)}</td>`; }
+    if (showTotal) html += `<td class="cf-total-col">${fmt(outflowGrandTotal)}</td>`;
+    if (showAvg) html += `<td class="cf-total-col">${fmt(outflowGrandTotal/n)}</td>`;
+    html += '</tr>';
+
+    // 4. Available credit
+    html += '<tr style="border-bottom:1px solid var(--color-border-md);"><td style="font-weight:500;">Available credit <span style="font-size:11px;font-weight:400;color:var(--color-text-tertiary);">(CC only)</span></td>';
+    for (const m of months) {
+      const v = monthAvailCredit[m];
+      html += `<td style="color:var(--color-text-secondary);">${v>0?fmt(v):'—'}</td>`;
+    }
+    if (showTotal) html += `<td class="cf-total-col">—</td>`;
+    if (showAvg) html += `<td class="cf-total-col">—</td>`;
+    html += '</tr>';
+
+    // Separator row
+    html += `<tr><td colspan="${months.length + (showTotal?1:0) + (showAvg?1:0) + 1}" style="padding:4px; background:var(--color-bg-secondary); border-bottom:1px solid var(--color-border-md);"></td></tr>`;
+
+    // ── DETAIL SECTION ──
     // Income row (expandable)
     const incExpanded = expandedGroups.has('__income__');
-    html += `<tr class="cf-row-income"><td onclick="toggleGroup('__income__')" style="cursor:pointer">${incExpanded?'▾':'▸'} Income</td>`;
+    html += `<tr class="cf-row-income"><td onclick="toggleGroup('__income__')" style="cursor:pointer;">${incExpanded?'▾':'▸'} Income</td>`;
     let incTotal = 0;
-    for (const m of months) { const v = monthIncome[m]||0; incTotal+=v; html += `<td>${fmt(v)}</td>`; }
+    for (const m of months) { const v=monthIncome[m]||0; incTotal+=v; html+=`<td>${fmt(v)}</td>`; }
     if (showTotal) html += `<td class="cf-total-col">${fmt(incTotal)}</td>`;
     if (showAvg) html += `<td class="cf-total-col">${fmt(incTotal/n)}</td>`;
     html += '</tr>';
@@ -1250,8 +1405,8 @@
       const allIncCats = [...new Set(cfData.filter(r=>r.category_group==='Inflow'&&months.includes(r.month)).map(r=>r.category))].sort();
       for (const cat of allIncCats) {
         html += `<tr class="cf-row-category"><td>${cat}</td>`;
-        let cTotal = 0;
-        for (const m of months) { const v = (incomeCats[m]||{})[cat]||0; cTotal+=v; html += `<td>${fmt(v)}</td>`; }
+        let cTotal=0;
+        for (const m of months) { const v=(incomeCats[m]||{})[cat]||0; cTotal+=v; html+=`<td>${fmt(v)}</td>`; }
         if (showTotal) html += `<td class="cf-total-col">${fmt(cTotal)}</td>`;
         if (showAvg) html += `<td class="cf-total-col">${fmt(cTotal/n)}</td>`;
         html += '</tr>';
@@ -1260,62 +1415,51 @@
 
     // Spending groups
     for (const g of groups) {
-      let gTotal = 0;
+      let gTotal=0;
       const monthTotals = months.map(m => {
-        const cats = (lookup[m]||{})[g]||{};
-        const t = Object.values(cats).reduce((a,b)=>a+b,0);
-        gTotal += t;
-        return t;
+        const cats=(lookup[m]||{})[g]||{};
+        const t=Object.values(cats).reduce((a,b)=>a+b,0);
+        gTotal+=t; return t;
       });
       const expanded = expandedGroups.has(g);
       html += `<tr class="cf-row-group"><td onclick="toggleGroup('${g}')">${expanded?'▾':'▸'} ${g}</td>`;
-      for (const t of monthTotals) html += `<td>${fmt(t)}</td>`;
+      for (const t of monthTotals) html+=`<td>${fmt(t)}</td>`;
       if (showTotal) html += `<td class="cf-total-col">${fmt(gTotal)}</td>`;
       if (showAvg) html += `<td class="cf-total-col">${fmt(gTotal/n)}</td>`;
       html += '</tr>';
       if (expanded) {
-        const cats = [...new Set(cfData.filter(r=>r.category_group===g&&months.includes(r.month)).map(r=>r.category))].sort();
+        const cats=[...new Set(cfData.filter(r=>r.category_group===g&&months.includes(r.month)).map(r=>r.category))].sort();
         for (const cat of cats) {
-          html += `<tr class="cf-row-category"><td>${cat}</td>`;
-          let cTotal = 0;
-          for (const m of months) { const v = ((lookup[m]||{})[g]||{})[cat]||0; cTotal+=v; html += `<td>${fmt(v)}</td>`; }
-          if (showTotal) html += `<td class="cf-total-col">${fmt(cTotal)}</td>`;
-          if (showAvg) html += `<td class="cf-total-col">${fmt(cTotal/n)}</td>`;
-          html += '</tr>';
+          html+=`<tr class="cf-row-category"><td>${cat}</td>`;
+          let cTotal=0;
+          for (const m of months) { const v=((lookup[m]||{})[g]||{})[cat]||0; cTotal+=v; html+=`<td>${fmt(v)}</td>`; }
+          if (showTotal) html+=`<td class="cf-total-col">${fmt(cTotal)}</td>`;
+          if (showAvg) html+=`<td class="cf-total-col">${fmt(cTotal/n)}</td>`;
+          html+='</tr>';
         }
       }
     }
 
-    // Surplus/deficit
-    html += '<tr class="cf-row-surplus"><td>Surplus / deficit</td>';
-    let surplusTotal = 0;
-    for (const m of months) {
-      const inc = monthIncome[m]||0;
-      const spend = groups.reduce((a,g)=>{ const cats=(lookup[m]||{})[g]||{}; return a+Object.values(cats).reduce((x,y)=>x+y,0); },0);
-      const s = inc - spend;
-      surplusTotal += s;
-      html += `<td style="color:${s>=0?'var(--color-success-text)':'var(--color-danger-text)'}">${s>=0?'':'-'}${fmt(Math.abs(s))}</td>`;
-    }
-    if (showTotal) html += `<td class="cf-total-col" style="color:${surplusTotal>=0?'var(--color-success-text)':'var(--color-danger-text)'}">${surplusTotal>=0?'':'-'}${fmt(Math.abs(surplusTotal))}</td>`;
-    if (showAvg) { const sa=surplusTotal/n; html += `<td class="cf-total-col" style="color:${sa>=0?'var(--color-success-text)':'var(--color-danger-text)'}">${sa>=0?'':'-'}${fmt(Math.abs(sa))}</td>`; }
-    html += '</tr></tbody></table>';
+    html += '</tbody></table>';
 
     let legend = [];
     if (months.length > 1) legend.push('3✓ = three-paycheck month');
     if (hasOtherIncome) legend.push('★ = non-Slalom income');
+    legend.push('~ = current partial month');
     if (legend.length) html += `<p style="font-size:12px;color:var(--color-text-tertiary);margin-top:8px;">${legend.join(' · ')}</p>`;
+    if (!startingCash.hasGoodSnapshot) html += `<p style="font-size:12px;color:var(--color-text-tertiary);margin-top:4px;">Cash balance starts from $0 — add a snapshot for the period start date in Admin.</p>`;
+    if (startingCash.hasGoodSnapshot) html += `<p style="font-size:12px;color:var(--color-text-tertiary);margin-top:4px;">Cash balance starts from $${Math.round(startingCash.total).toLocaleString()} (checking + savings snapshot). Credit card charges reflected when payment is made, not at time of purchase.</p>`;
 
-    document.getElementById('cf-table-container').innerHTML = html;
+    document.getElementById('cf-table-container').innerHTML = warningHtml + html;
     document.getElementById('cf-loading').style.display = 'none';
   }
-
   function toggleGroup(g) {
     if (expandedGroups.has(g)) expandedGroups.delete(g);
     else expandedGroups.add(g);
     renderCashFlow();
   }
 
-  function renderChart(months, monthIncome, lookup, groups, groupColors) {
+  function renderChart(months, monthIncome, lookup, groups, groupColors, monthEndBal) {
     const fmtMonth = m => { const d = new Date(m+'T12:00:00'); return d.toLocaleDateString('en-US',{month:'short',year:'2-digit'}); };
     const labels = months.map(fmtMonth);
 
@@ -1323,7 +1467,8 @@
       label: 'Income',
       data: months.map(m => Math.round(monthIncome[m]||0)),
       backgroundColor: 'rgba(59,109,17,0.7)',
-      stack: 'income'
+      stack: 'income',
+      datalabels: { display: false }
     };
 
     const spendDatasets = groups.map(g => ({
@@ -1333,7 +1478,8 @@
         return -Math.round(Object.values(cats).reduce((a,b)=>a+b,0));
       }),
       backgroundColor: groupColors[g]+'bb',
-      stack: 'spending'
+      stack: 'spending',
+      datalabels: { display: false }
     }));
 
     const netData = months.map(m => {
@@ -1343,7 +1489,7 @@
     });
 
     const netDataset = {
-      label: 'Net',
+      label: 'Surplus/deficit',
       data: netData,
       type: 'line',
       borderColor: '#534ab7',
@@ -1351,17 +1497,50 @@
       borderWidth: 2,
       pointRadius: 4,
       tension: 0.3,
-      yAxisID: 'y'
+      yAxisID: 'y',
+      datalabels: {
+        display: true,
+        align: 'top',
+        color: '#534ab7',
+        font: { size: 10, weight: '500' },
+        formatter: v => v >= 0 ? '+$'+Math.round(v/1000*10)/10+'k' : '-$'+Math.round(Math.abs(v)/1000*10)/10+'k'
+      }
     };
+
+    const balDataset = monthEndBal ? {
+      label: 'Cash balance',
+      data: months.map(m => Math.round(monthEndBal[m]||0)),
+      type: 'line',
+      borderColor: '#b07800',
+      backgroundColor: '#b07800',
+      borderWidth: 2,
+      pointRadius: 4,
+      borderDash: [5,3],
+      tension: 0.2,
+      yAxisID: 'y',
+      datalabels: {
+        display: true,
+        align: 'bottom',
+        color: '#b07800',
+        font: { size: 10 },
+        formatter: v => '$'+Math.round(v/1000*10)/10+'k'
+      }
+    } : null;
+
+    const datasets = [incomeDataset, ...spendDatasets, netDataset];
+    if (balDataset) datasets.push(balDataset);
 
     const ctx = document.getElementById('cf-chart').getContext('2d');
     if (cfChart) cfChart.destroy();
     cfChart = new Chart(ctx, {
       type: 'bar',
-      data: { labels, datasets: [incomeDataset, ...spendDatasets, netDataset] },
+      data: { labels, datasets },
       options: {
         responsive: true,
-        plugins: { legend: { position: 'bottom', labels: { font: { size: 12 }, boxWidth: 12 } } },
+        plugins: {
+          legend: { position: 'bottom', labels: { font: { size: 12 }, boxWidth: 12 } },
+          datalabels: { display: false }
+        },
         scales: {
           x: { grid: { display: false } },
           y: { grid: { color: 'rgba(0,0,0,0.06)' }, ticks: { callback: v => '$'+Math.abs(v/1000).toFixed(0)+'k' } }
@@ -2348,10 +2527,13 @@
     const accounts = await sb('accounts?is_active=eq.true&order=type,name');
     if (!accounts.length) { document.getElementById('bs-as-of').textContent = 'No accounts found. Add accounts in Admin first.'; return; }
 
-    const snapshots = await sb('account_snapshots?order=account_id,as_of_date.desc');
+    const snapshots = await sb('account_snapshots?order=as_of_date.desc,created_at.desc');
     const latestSnap = {}, latestDate = {};
     for (const s of snapshots) {
-      if (!latestSnap[s.account_id]) { latestSnap[s.account_id] = s.balance; latestDate[s.account_id] = s.as_of_date; }
+      if (latestSnap[s.account_id] === undefined) {
+        latestSnap[s.account_id] = s.balance;
+        latestDate[s.account_id] = s.as_of_date;
+      }
     }
 
     const fmt = v => '$' + Math.round(Math.abs(v)).toLocaleString();
