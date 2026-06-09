@@ -1265,27 +1265,39 @@
   }
 
   function getStartingCashBalance(periodStartDate) {
+    // Normalize periodStartDate to noon to avoid timezone issues
+    const pdNorm = new Date(periodStartDate);
+    pdNorm.setHours(12, 0, 0, 0);
+
     // Find checking + savings accounts
     const cashAccountIds = new Set(
       cfAccounts.filter(a => a.type === 'checking' || a.type === 'savings').map(a => a.id)
     );
-    // Find most recent snapshot on or before periodStartDate for each cash account
+
+    // cfSnapshots is ordered desc by date — find most recent on or before periodStartDate per account
     const latestPerAccount = {};
     for (const s of cfSnapshots) {
-      const snapDate = new Date(s.as_of_date + 'T12:00:00');
       if (!cashAccountIds.has(s.account_id)) continue;
-      if (snapDate > periodStartDate) continue;
-      if (!latestPerAccount[s.account_id]) latestPerAccount[s.account_id] = s;
+      const snapDate = new Date(s.as_of_date + 'T12:00:00');
+      if (snapDate > pdNorm) continue; // skip snapshots after period start
+      if (!latestPerAccount[s.account_id]) latestPerAccount[s.account_id] = s; // first = most recent
     }
+
     const found = Object.values(latestPerAccount);
     const total = found.reduce((sum, s) => sum + s.balance, 0);
-    const missing = [...cashAccountIds].filter(id => !latestPerAccount[id]);
-    // Check if we have a snapshot close enough (within 5 days of period start)
-    const hasGoodSnapshot = found.length > 0 && found.every(s => {
-      const diff = Math.abs(new Date(s.as_of_date + 'T12:00:00') - periodStartDate);
-      return diff < 6 * 24 * 3600 * 1000; // within 5 days
+    const cashAccList = [...cashAccountIds];
+    const missing = cashAccList.filter(id => !latestPerAccount[id]);
+
+    // Good snapshot = found at least one account, and all found are within 7 days of period start
+    const hasGoodSnapshot = found.length > 0 && missing.length === 0 && found.every(s => {
+      const snapDate = new Date(s.as_of_date + 'T12:00:00');
+      const diffDays = Math.abs(pdNorm - snapDate) / (24 * 3600 * 1000);
+      return diffDays <= 7;
     });
-    return { total, hasGoodSnapshot, found, missingCount: missing.length };
+
+    // Build description of what we found
+    const foundDates = [...new Set(found.map(s => s.as_of_date))];
+    return { total, hasGoodSnapshot, found, missing, foundDates };
   }
 
   function getAvailableCredit(asOfDate) {
@@ -1361,7 +1373,7 @@
       monthAvailCredit[m] = getAvailableCredit(monthEnd);
     }
 
-    renderChart(months, monthIncome, lookup, groups, groupColors, monthEndBal);
+    renderChart(months, monthIncome, lookup, groups, groupColors, monthEndBal, startingCash);
 
     // Helpers
     const fmtMonth = m => { const d = new Date(m+'T12:00:00'); return d.toLocaleDateString('en-US',{month:'short',year:'2-digit'}); };
@@ -1507,7 +1519,7 @@
     renderCashFlow();
   }
 
-  function renderChart(months, monthIncome, lookup, groups, groupColors, monthEndBal) {
+  function renderChart(months, monthIncome, lookup, groups, groupColors, monthEndBal, startingCash) {
     const fmtMonth = m => { const d = new Date(m+'T12:00:00'); return d.toLocaleDateString('en-US',{month:'short',year:'2-digit'}); };
     const labels = months.map(fmtMonth);
 
@@ -1555,34 +1567,51 @@
       }
     };
 
-    const balDataset = monthEndBal ? {
-      label: 'Cash balance',
-      data: months.map(m => Math.round(monthEndBal[m]||0)),
+    // Cash balance line: prepend starting balance as a "Start" label
+    const startLabel = startingCash && startingCash.foundDates.length
+      ? 'Start (' + startingCash.foundDates[0] + ')'
+      : 'Start ($0)';
+    const startBal = startingCash ? Math.round(startingCash.total) : 0;
+    const balLabels = [startLabel, ...labels];
+    const balData = [startBal, ...months.map(m => Math.round(monthEndBal[m]||0))];
+
+    const balDataset = {
+      label: 'Cash balance (month-end)',
+      data: balData,
       type: 'line',
       borderColor: '#b07800',
       backgroundColor: '#b07800',
       borderWidth: 2,
-      pointRadius: 4,
+      pointRadius: 5,
       borderDash: [5,3],
       tension: 0.2,
       yAxisID: 'y',
       datalabels: {
         display: true,
-        align: 'bottom',
+        align: 'top',
         color: '#b07800',
         font: { size: 10 },
         formatter: v => '$'+Math.round(v/1000*10)/10+'k'
       }
-    } : null;
+    };
 
-    const datasets = [incomeDataset, ...spendDatasets, netDataset];
-    if (balDataset) datasets.push(balDataset);
+    // Bar chart uses months labels; balance line uses balLabels (one extra point)
+    // Use months labels for bars, offset balance dataset by using extra label
+    const allLabels = balLabels; // includes Start + all months
+    const padNull = arr => [null, ...arr]; // pad bar datasets with null for Start label
+
+    const datasets = [
+      { ...incomeDataset, data: padNull(incomeDataset.data) },
+      ...spendDatasets.map(d => ({ ...d, data: padNull(d.data) })),
+      { ...netDataset, data: padNull(netDataset.data) },
+      balDataset
+    ];
 
     const ctx = document.getElementById('cf-chart').getContext('2d');
     if (cfChart) cfChart.destroy();
     cfChart = new Chart(ctx, {
       type: 'bar',
-      data: { labels, datasets },
+      data: { labels: allLabels, datasets },
       options: {
         responsive: true,
         plugins: {
