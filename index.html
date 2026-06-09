@@ -592,27 +592,45 @@
 
     <!-- Record Balances -->
     <div id="inner-snapshot" class="inner-panel">
-      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
-        <p style="font-size:13px; color:var(--color-text-secondary);">Enter balances for each account. The shaded row shows the most recent entry — click to edit. The blank row below adds a new entry.</p>
-        <button class="btn btn-primary" onclick="saveAllSnapshots()" style="white-space:nowrap;"><i class="ti ti-device-floppy"></i> Save all changes</button>
+      <!-- Filter bar -->
+      <div style="display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap; margin-bottom:1rem; padding:10px 12px; background:var(--color-bg-secondary); border-radius:var(--radius-md);">
+        <div class="form-group">
+          <label>From</label>
+          <input type="date" id="snap-filter-from" style="font-size:13px; padding:5px 8px;" onchange="renderSnapGrid()" />
+        </div>
+        <div class="form-group">
+          <label>To</label>
+          <input type="date" id="snap-filter-to" style="font-size:13px; padding:5px 8px;" onchange="renderSnapGrid()" />
+        </div>
+        <div class="form-group">
+          <label>Accounts</label>
+          <select id="snap-filter-accounts" multiple style="font-size:13px; padding:4px 8px; min-width:180px; height:64px;" onchange="renderSnapGrid()"></select>
+        </div>
+        <div style="display:flex; gap:8px; margin-left:auto;">
+          <button class="btn btn-secondary" onclick="resetSnapGrid()" title="Undo all changes"><i class="ti ti-refresh"></i> Reset</button>
+          <button class="btn btn-primary" onclick="saveAllSnapshots()"><i class="ti ti-device-floppy"></i> Save all changes</button>
+        </div>
       </div>
       <div id="snap-status" class="status"></div>
       <div style="overflow-x:auto;">
-        <table id="snap-grid" style="width:100%; border-collapse:collapse; font-size:13px;">
+        <table style="width:100%; border-collapse:collapse; font-size:13px;">
           <thead>
             <tr style="border-bottom:2px solid var(--color-border-md);">
-              <th style="text-align:left; padding:6px 10px; font-size:11px; font-weight:500; text-transform:uppercase; letter-spacing:0.05em; color:var(--color-text-secondary); min-width:160px;">Account</th>
-              <th style="text-align:left; padding:6px 10px; font-size:11px; font-weight:500; text-transform:uppercase; letter-spacing:0.05em; color:var(--color-text-secondary);">Type</th>
-              <th style="text-align:left; padding:6px 10px; font-size:11px; font-weight:500; text-transform:uppercase; letter-spacing:0.05em; color:var(--color-text-secondary); min-width:110px;">As-of date</th>
-              <th style="text-align:right; padding:6px 10px; font-size:11px; font-weight:500; text-transform:uppercase; letter-spacing:0.05em; color:var(--color-text-secondary); min-width:120px;">Balance ($)</th>
-              <th style="text-align:left; padding:6px 10px; font-size:11px; font-weight:500; text-transform:uppercase; letter-spacing:0.05em; color:var(--color-text-secondary);">Source</th>
-              <th style="padding:6px 10px; min-width:60px;"></th>
+              <th style="text-align:left; padding:5px 10px; font-size:11px; font-weight:500; text-transform:uppercase; letter-spacing:0.05em; color:var(--color-text-secondary); min-width:180px;">Account</th>
+              <th style="text-align:left; padding:5px 10px; font-size:11px; font-weight:500; text-transform:uppercase; letter-spacing:0.05em; color:var(--color-text-secondary); min-width:120px;">Date</th>
+              <th style="text-align:right; padding:5px 10px; font-size:11px; font-weight:500; text-transform:uppercase; letter-spacing:0.05em; color:var(--color-text-secondary); min-width:130px;">Balance ($)</th>
+              <th style="text-align:left; padding:5px 10px; font-size:11px; font-weight:500; text-transform:uppercase; letter-spacing:0.05em; color:var(--color-text-secondary);">Source</th>
+              <th style="padding:5px 10px; min-width:80px;"></th>
             </tr>
           </thead>
           <tbody id="snap-grid-body">
-            <tr><td colspan="6" style="padding:1rem; text-align:center; color:var(--color-text-tertiary);">Loading...</td></tr>
+            <tr><td colspan="5" style="padding:1rem; text-align:center; color:var(--color-text-tertiary);">Loading...</td></tr>
           </tbody>
         </table>
+      </div>
+      <div style="font-size:12px; color:var(--color-text-tertiary); margin-top:8px;">
+        <span style="display:inline-block; width:10px; height:10px; background:#b07800; border-radius:2px; margin-right:4px;"></span>Edited row will update &nbsp;
+        <span style="display:inline-block; width:10px; height:10px; background:#3b6d11; border-radius:2px; margin-right:4px; margin-left:8px;"></span>New entry will be added
       </div>
     </div>
 
@@ -867,186 +885,211 @@
     } catch (e) { console.error(e); }
   }
 
-  let snapGridAccounts = [];
-  let snapGridLatest = {}; // account_id -> snapshot row
-  let snapGridEdits = {};  // account_id -> {editId, editDate, editBalance, editSource} for existing row edits
-  let snapGridNew = {};    // account_id -> {date, balance, source} for new rows
+  // ── Record Balances ──────────────────────────────────────
+  let allSnapAccounts = [];   // all accounts
+  let allSnapRows = [];        // all snapshot rows from DB
+  let snapEdits = {};          // id -> {date, balance, source} for existing rows
+  let snapNewRows = [];        // [{tempId, account_id, date, balance, source}] for new rows
 
   async function loadAccountsDropdown() {
     await loadSnapGrid();
   }
 
   async function loadSnapGrid() {
-    snapGridAccounts = await sb('accounts?is_active=eq.true&order=type,name');
-    const snaps = await sb('account_snapshots?order=as_of_date.desc,created_at.desc');
-    snapGridLatest = {};
-    for (const s of snaps) {
-      if (!snapGridLatest[s.account_id]) snapGridLatest[s.account_id] = s;
-    }
-    snapGridEdits = {};
-    snapGridNew = {};
+    allSnapAccounts = await sb('accounts?is_active=eq.true&order=type,name');
+    allSnapRows = await sb('account_snapshots?order=as_of_date.desc,created_at.desc');
+    snapEdits = {};
+    snapNewRows = [];
+
+    // Set default date range (last 30 days)
+    const today = new Date();
+    const from = new Date(today); from.setDate(from.getDate() - 30);
+    document.getElementById('snap-filter-to').value = today.toISOString().split('T')[0];
+    document.getElementById('snap-filter-from').value = from.toISOString().split('T')[0];
+
+    // Populate account filter (all selected by default)
+    const sel = document.getElementById('snap-filter-accounts');
+    sel.innerHTML = allSnapAccounts.map(a => `<option value="${a.id}" selected>${a.name}</option>`).join('');
+
     renderSnapGrid();
   }
 
-  function renderSnapGrid() {
-    // snapGridMode[accountId] = 'new' or 'edit'
-    if (!window.snapGridMode) window.snapGridMode = {};
-    const today = new Date().toISOString().split('T')[0];
-    const typeLabel = t => t.replace(/_/g,' ');
-    const sourceOpts = (val) => ['manual','advisor_import','ynab_import'].map(s =>
-      `<option value="${s}" ${val===s?'selected':''}>${s==='manual'?'Manual':s==='advisor_import'?'Advisor':'YNAB'}</option>`
-    ).join('');
+  function getSnapFilters() {
+    const from = document.getElementById('snap-filter-from').value;
+    const to = document.getElementById('snap-filter-to').value;
+    const sel = document.getElementById('snap-filter-accounts');
+    const selectedIds = new Set([...sel.options].filter(o => o.selected).map(o => o.value));
+    return { from, to, selectedIds };
+  }
 
-    const ROW_STYLE = 'background:var(--color-bg-secondary);';
-    const INPUT_STYLE = 'font-family:inherit; font-size:13px; padding:3px 6px; border:0.5px solid var(--color-border-md); border-radius:4px; background:var(--color-bg); color:var(--color-text-primary); width:100%;';
-    const SELECT_STYLE = 'font-family:inherit; font-size:12px; padding:3px 4px; border:0.5px solid var(--color-border-md); border-radius:4px; background:var(--color-bg); color:var(--color-text-primary);';
+  function renderSnapGrid() {
+    const { from, to, selectedIds } = getSnapFilters();
+    const INPUT = 'font-family:inherit;font-size:13px;padding:4px 6px;border:0.5px solid var(--color-border-md);border-radius:4px;background:var(--color-bg);color:var(--color-text-primary);width:100%;';
+    const SELECT = 'font-family:inherit;font-size:12px;padding:4px 6px;border:0.5px solid var(--color-border-md);border-radius:4px;background:var(--color-bg);color:var(--color-text-primary);';
+    const sourceOpts = val => ['manual','advisor_import','ynab_import'].map(s =>
+      `<option value="${s}" ${val===s?'selected':''}>${s==='manual'?'Manual':s==='advisor_import'?'Advisor':'YNAB'}</option>`).join('');
+
+    // Filter existing rows
+    const filtered = allSnapRows.filter(s => {
+      if (!selectedIds.has(s.account_id)) return false;
+      if (from && s.as_of_date < from) return false;
+      if (to && s.as_of_date > to) return false;
+      return true;
+    });
+
+    // Group by account
+    const byAccount = {};
+    for (const a of allSnapAccounts) {
+      if (selectedIds.has(a.id)) byAccount[a.id] = { account: a, rows: [] };
+    }
+    for (const s of filtered) {
+      if (byAccount[s.account_id]) byAccount[s.account_id].rows.push(s);
+    }
 
     let html = '';
     let lastType = '';
 
-    for (const a of snapGridAccounts) {
+    for (const { account: a, rows } of Object.values(byAccount)) {
+      // Type group header
       if (a.type !== lastType) {
-        html += `<tr><td colspan="6" style="padding:4px 10px 2px; font-size:10px; font-weight:500; text-transform:uppercase; letter-spacing:0.06em; color:var(--color-text-tertiary); background:var(--color-bg-tertiary);">${typeLabel(a.type)}</td></tr>`;
+        html += `<tr><td colspan="5" style="padding:3px 10px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-text-tertiary);background:var(--color-bg-tertiary);">${a.type.replace(/_/g,' ')}</td></tr>`;
         lastType = a.type;
       }
 
-      const latest = snapGridLatest[a.id];
-      const edit = snapGridEdits[a.id] || {};
-      const newRow = snapGridNew[a.id] || {};
+      // Existing rows
+      for (const s of rows) {
+        const edit = snapEdits[s.id];
+        const isDirty = !!edit;
+        const borderStyle = isDirty ? 'border-left:3px solid #b07800;' : 'border-left:3px solid transparent;';
+        const d = edit ? edit.date : s.as_of_date;
+        const b = edit ? edit.balance : s.balance;
+        const src = edit ? edit.source : (s.source||'manual');
+        html += `<tr style="${borderStyle} border-bottom:0.5px solid var(--color-border);">
+          <td style="padding:4px 10px;font-weight:500;font-size:13px;">${a.name}${a.institution?`<span style="font-size:11px;color:var(--color-text-tertiary);margin-left:6px;">${a.institution}</span>`:''}</td>
+          <td style="padding:4px 6px;"><input type="date" value="${d}" style="${INPUT}" onchange="markSnapEdit('${s.id}','date',this.value,'${s.as_of_date}',${s.balance},'${s.source||'manual'}')" /></td>
+          <td style="padding:4px 6px;"><input type="number" value="${b}" step="0.01" style="${INPUT}text-align:right;" onchange="markSnapEdit('${s.id}','balance',this.value,'${s.as_of_date}',${s.balance},'${s.source||'manual'}')" /></td>
+          <td style="padding:4px 6px;"><select style="${SELECT}" onchange="markSnapEdit('${s.id}','source',this.value,'${s.as_of_date}',${s.balance},'${s.source||'manual'}')">${sourceOpts(src)}</select></td>
+          <td style="padding:4px 6px;display:flex;gap:4px;">
+            ${isDirty ? `<button class="btn btn-secondary" style="padding:2px 8px;font-size:11px;" onclick="undoSnapEdit('${s.id}')">Undo</button>` : ''}
+            <button class="btn btn-secondary" style="padding:2px 8px;font-size:11px;color:var(--color-danger-text);" onclick="deleteSnap('${s.id}')">Del</button>
+          </td>
+        </tr>`;
+      }
 
-      const mode = window.snapGridMode[a.id] || 'none';
-      const isEdit = mode === 'edit';
-      const isNew = mode === 'new';
-      const rowDate = isEdit ? (edit.date ?? latest?.as_of_date ?? today) : (isNew ? (newRow.date ?? today) : (latest?.as_of_date ?? today));
-      const rowBal  = isEdit ? (edit.balance !== undefined ? edit.balance : (latest?.balance ?? '')) : (isNew ? (newRow.balance ?? '') : (latest?.balance ?? ''));
-      const rowSrc  = isEdit ? (edit.source ?? latest?.source ?? 'manual') : (isNew ? (newRow.source ?? 'manual') : (latest?.source ?? 'manual'));
-      const zeroChecked = isEdit ? (edit.allowZero || false) : (isNew ? (newRow.allowZero || false) : false);
+      // New entry rows for this account (from snapNewRows)
+      const newForAccount = snapNewRows.filter(r => r.account_id === a.id);
+      for (const nr of newForAccount) {
+        html += `<tr style="border-left:3px solid #3b6d11; border-bottom:0.5px solid var(--color-border); background:var(--color-bg);">
+          <td style="padding:4px 10px;font-size:12px;color:var(--color-success-text);">↳ ${a.name} <span style="font-size:10px;">(new)</span></td>
+          <td style="padding:4px 6px;"><input type="date" value="${nr.date}" style="${INPUT}" onchange="updateNewRow('${nr.tempId}','date',this.value)" /></td>
+          <td style="padding:4px 6px;"><input type="number" value="${nr.balance}" step="0.01" style="${INPUT}text-align:right;" onchange="updateNewRow('${nr.tempId}','balance',this.value)" /></td>
+          <td style="padding:4px 6px;"><select style="${SELECT}" onchange="updateNewRow('${nr.tempId}','source',this.value)">${sourceOpts(nr.source)}</select></td>
+          <td style="padding:4px 6px;"><button class="btn btn-secondary" style="padding:2px 8px;font-size:11px;" onclick="removeNewRow('${nr.tempId}')">Remove</button></td>
+        </tr>`;
+      }
 
-      const latestDisplay = latest
-        ? `<span style="font-size:11px;color:var(--color-text-tertiary);margin-left:8px;">last: $${Math.round(latest.balance).toLocaleString()} on ${latest.as_of_date}</span>`
-        : `<span style="font-size:11px;color:var(--color-danger-text);margin-left:8px;">no snapshot yet</span>`;
-
-      html += `<tr style="border-bottom:1px solid var(--color-border-md);">
-        <td style="padding:4px 10px;">
-          <span style="font-weight:500;">${a.name}</span>${a.institution?`<span style="font-size:11px;color:var(--color-text-tertiary);margin-left:6px;">${a.institution}</span>`:''}
-          ${latestDisplay}
+      // Add new entry button row
+      const today = new Date().toISOString().split('T')[0];
+      html += `<tr style="border-left:3px solid transparent;border-bottom:1px solid var(--color-border-md);background:var(--color-bg-secondary);">
+        <td style="padding:3px 10px;" colspan="5">
+          <button class="btn btn-secondary" style="padding:2px 10px;font-size:12px;" onclick="addNewRow('${a.id}','${today}')"><i class="ti ti-plus"></i> Add entry for ${a.name}</button>
         </td>
-        <td style="padding:4px 6px;">
-          <select style="font-family:inherit; font-size:12px; padding:3px 4px; border:0.5px solid var(--color-border-md); border-radius:4px; background:var(--color-bg); color:var(--color-text-primary); width:100%;" onchange="setSnapMode('${a.id}',this.value)">
-            <option value="none" selected>no action</option>
-            <option value="edit" ${!latest?'disabled':''}>update</option>
-            <option value="new">new entry</option>
-          </select>
-        </td>
-        <td style="padding:4px 6px;"><input type="date" value="${rowDate}" style="${INPUT_STYLE}" onchange="snapSetField('${a.id}','date',this.value)" /></td>
-        <td style="padding:4px 6px;">
-          <input type="number" value="${rowBal}" placeholder="0.00" step="0.01" style="${INPUT_STYLE} text-align:right;" onchange="snapSetField('${a.id}','balance',this.value)" />
-          <label style="font-size:10px; display:flex; align-items:center; gap:3px; margin-top:2px; cursor:pointer;">
-            <input type="checkbox" ${zeroChecked?'checked':''} onchange="snapSetField('${a.id}','allowZero',this.checked)" style="margin:0;" /> include $0
-          </label>
-        </td>
-        <td style="padding:4px 6px;"><select style="${SELECT_STYLE}" onchange="snapSetField('${a.id}','source',this.value)">${sourceOpts(rowSrc)}</select></td>
-        <td style="padding:4px 6px;"></td>
       </tr>`;
     }
 
-    document.getElementById('snap-grid-body').innerHTML = html;
+    document.getElementById('snap-grid-body').innerHTML = html || '<tr><td colspan="5" style="padding:1rem;text-align:center;color:var(--color-text-tertiary);">No snapshots found for this filter. Adjust the date range or add a new entry.</td></tr>';
   }
 
-  function setSnapMode(accountId, mode) {
-    if (!window.snapGridMode) window.snapGridMode = {};
-    window.snapGridMode[accountId] = mode;
-    const today = new Date().toISOString().split('T')[0];
-    const latest = snapGridLatest[accountId];
-    // Pre-populate data structures so unchanged values still save
-    if (mode === 'edit' && latest) {
-      if (!snapGridEdits[accountId]) {
-        snapGridEdits[accountId] = {
-          id: latest.id,
-          date: latest.as_of_date,
-          balance: latest.balance,
-          source: latest.source || 'manual',
-          allowZero: false
-        };
-      }
-    } else if (mode === 'new') {
-      if (!snapGridNew[accountId]) {
-        snapGridNew[accountId] = {
-          date: today,
-          balance: latest ? latest.balance : '',
-          source: latest ? (latest.source || 'manual') : 'manual',
-          allowZero: false
-        };
-      }
-    }
+  function markSnapEdit(id, field, value, origDate, origBalance, origSource) {
+    if (!snapEdits[id]) snapEdits[id] = { date: origDate, balance: origBalance, source: origSource };
+    snapEdits[id][field] = field === 'balance' ? value : value;
+    renderSnapGrid();
   }
 
-  function snapSetField(accountId, field, value) {
-    const mode = (window.snapGridMode || {})[accountId] || (snapGridLatest[accountId] ? 'edit' : 'new');
-    if (mode === 'edit') {
-      if (!snapGridEdits[accountId]) {
-        const l = snapGridLatest[accountId];
-        snapGridEdits[accountId] = { id: l.id, date: l.as_of_date, balance: l.balance, source: l.source||'manual', allowZero: false };
-      }
-      snapGridEdits[accountId][field] = value;
-    } else {
-      if (!snapGridNew[accountId]) snapGridNew[accountId] = { date: new Date().toISOString().split('T')[0], balance: '', source: 'manual', allowZero: false };
-      snapGridNew[accountId][field] = value;
-    }
+  function undoSnapEdit(id) {
+    delete snapEdits[id];
+    renderSnapGrid();
+  }
+
+  function addNewRow(accountId, date) {
+    const tempId = 'new_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+    snapNewRows.push({ tempId, account_id: accountId, date, balance: '', source: 'manual' });
+    renderSnapGrid();
+  }
+
+  function updateNewRow(tempId, field, value) {
+    const row = snapNewRows.find(r => r.tempId === tempId);
+    if (row) row[field] = value;
+  }
+
+  function removeNewRow(tempId) {
+    snapNewRows = snapNewRows.filter(r => r.tempId !== tempId);
+    renderSnapGrid();
+  }
+
+  async function deleteSnap(id) {
+    if (!confirm('Delete this snapshot?')) return;
+    try {
+      await fetch(`${SUPABASE_URL}/rest/v1/account_snapshots?id=eq.${id}`, {
+        method: 'DELETE', headers: { ...sbHeaders }
+      });
+      allSnapRows = allSnapRows.filter(s => s.id !== id);
+      delete snapEdits[id];
+      renderSnapGrid();
+      setStatus('snap-status', 'Snapshot deleted.', 'success');
+    } catch(e) { setStatus('snap-status', 'Error: ' + e.message, 'error'); }
+  }
+
+  function resetSnapGrid() {
+    snapEdits = {};
+    snapNewRows = [];
+    renderSnapGrid();
   }
 
   async function saveAllSnapshots() {
     let saved = 0, errors = 0;
-    const today = new Date().toISOString().split('T')[0];
-    const modes = window.snapGridMode || {};
 
-    for (const a of snapGridAccounts) {
-      const mode = modes[a.id] || 'none';
-      if (mode === 'none') continue;
-      const latest = snapGridLatest[a.id];
-
-      if (mode === 'edit' && snapGridEdits[a.id]) {
-        const edit = snapGridEdits[a.id];
-        const balance = parseFloat(edit.balance);
-        if (!latest) continue;
-        if (isNaN(balance) && !edit.allowZero) continue;
-        const finalBal = edit.allowZero && isNaN(balance) ? 0 : balance;
-        try {
-          await fetch(`${SUPABASE_URL}/rest/v1/account_snapshots?id=eq.${latest.id}`, {
-            method: 'PATCH',
-            headers: { ...sbHeaders, 'Prefer': 'return=minimal' },
-            body: JSON.stringify({ balance: finalBal, as_of_date: edit.date || latest.as_of_date, source: edit.source || 'manual' })
-          });
-          saved++;
-        } catch(e) { errors++; }
-      } else if (mode === 'new' && snapGridNew[a.id]) {
-        const newRow = snapGridNew[a.id];
-        const balance = parseFloat(newRow.balance);
-        const hasBalance = !isNaN(balance);
-        const allowZero = newRow.allowZero;
-        if (!hasBalance && !allowZero) continue;
-        const finalBal = allowZero && !hasBalance ? 0 : balance;
-        try {
-          await sb('account_snapshots', 'POST', {
-            account_id: a.id,
-            as_of_date: newRow.date || today,
-            balance: finalBal,
-            source: newRow.source || 'manual'
-          });
-          saved++;
-        } catch(e) { errors++; }
-      }
+    // Save edits to existing rows
+    for (const [id, edit] of Object.entries(snapEdits)) {
+      const balance = parseFloat(edit.balance);
+      if (isNaN(balance)) { errors++; continue; }
+      try {
+        await fetch(`${SUPABASE_URL}/rest/v1/account_snapshots?id=eq.${id}`, {
+          method: 'PATCH',
+          headers: { ...sbHeaders, 'Prefer': 'return=minimal' },
+          body: JSON.stringify({ balance, as_of_date: edit.date, source: edit.source })
+        });
+        // Update local copy
+        const row = allSnapRows.find(s => s.id === id);
+        if (row) { row.balance = balance; row.as_of_date = edit.date; row.source = edit.source; }
+        saved++;
+      } catch(e) { errors++; }
     }
 
-    if (errors) setStatus('snap-status', `Saved ${saved} entries, ${errors} errors.`, 'error');
-    else if (saved) setStatus('snap-status', `Saved ${saved} entries.`, 'success');
-    else setStatus('snap-status', 'No changes to save — fill in balances or check "include $0" to save a zero balance.', 'error');
+    // Save new rows (only if balance filled in)
+    for (const nr of snapNewRows) {
+      const balance = parseFloat(nr.balance);
+      if (isNaN(balance) || nr.balance === '') continue;
+      try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/account_snapshots`, {
+          method: 'POST',
+          headers: { ...sbHeaders, 'Prefer': 'return=representation' },
+          body: JSON.stringify({ account_id: nr.account_id, as_of_date: nr.date, balance, source: nr.source || 'manual' })
+        });
+        const newSnap = await res.json();
+        if (newSnap && newSnap[0]) allSnapRows.push(newSnap[0]);
+        saved++;
+      } catch(e) { errors++; }
+    }
 
-    if (saved) { window.snapGridMode = {}; await loadSnapGrid(); }
-    else if (!errors) { /* no action rows — that's fine */ }
+    if (errors) setStatus('snap-status', `Saved ${saved}, ${errors} error(s).`, 'error');
+    else if (saved) setStatus('snap-status', `Saved ${saved} snapshot${saved>1?'s':''}.`, 'success');
+    else setStatus('snap-status', 'Nothing to save — add entries using the + buttons.', 'error');
+
+    if (saved) { snapEdits = {}; snapNewRows = []; renderSnapGrid(); }
   }
 
-  async function addSnapshot() { /* legacy — replaced by grid */ }
+  async function addSnapshot() { /* legacy */ }
 
   function parseCSVLine(line) {
     const result = [];
