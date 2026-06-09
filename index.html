@@ -628,9 +628,10 @@
           </tbody>
         </table>
       </div>
-      <div style="font-size:12px; color:var(--color-text-tertiary); margin-top:8px;">
-        <span style="display:inline-block; width:10px; height:10px; background:#b07800; border-radius:2px; margin-right:4px;"></span>Edited row will update &nbsp;
-        <span style="display:inline-block; width:10px; height:10px; background:#3b6d11; border-radius:2px; margin-right:4px; margin-left:8px;"></span>New entry will be added
+      <div style="font-size:12px; color:var(--color-text-tertiary); margin-top:8px; display:flex; gap:16px; flex-wrap:wrap;">
+        <span><span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--color-danger-text);color:white;font-size:12px;font-weight:700;margin-right:4px;">⊘</span>No changes — will not save</span>
+        <span><span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#b07800;color:white;font-size:11px;font-weight:700;margin-right:4px;">↑</span>Edited — will update on save</span>
+        <span><span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#3b6d11;color:white;font-size:12px;font-weight:700;margin-right:4px;">+</span>New entry — will be added on save</span>
       </div>
     </div>
 
@@ -909,7 +910,8 @@
 
     // Populate account filter (all selected by default)
     const sel = document.getElementById('snap-filter-accounts');
-    sel.innerHTML = allSnapAccounts.map(a => `<option value="${a.id}" selected>${a.name}</option>`).join('');
+    const sortedAccounts = [...allSnapAccounts].sort((a,b) => a.name.localeCompare(b.name));
+    sel.innerHTML = sortedAccounts.map(a => `<option value="${a.id}" selected>${a.name}</option>`).join('');
 
     renderSnapGrid();
   }
@@ -961,11 +963,14 @@
         const edit = snapEdits[s.id];
         const isDirty = !!edit;
         const borderStyle = isDirty ? 'border-left:3px solid #b07800;' : 'border-left:3px solid transparent;';
+        const indicator = isDirty
+          ? `<span title="Will be updated" style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:#b07800;color:white;font-size:11px;font-weight:700;margin-left:8px;flex-shrink:0;">↑</span>`
+          : `<span title="No changes — will not be saved" style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:var(--color-danger-text);color:white;font-size:13px;font-weight:700;margin-left:8px;flex-shrink:0;">⊘</span>`;
         const d = edit ? edit.date : s.as_of_date;
         const b = edit ? edit.balance : s.balance;
         const src = edit ? edit.source : (s.source||'manual');
         html += `<tr style="${borderStyle} border-bottom:0.5px solid var(--color-border);">
-          <td style="padding:4px 10px;font-weight:500;font-size:13px;">${a.name}${a.institution?`<span style="font-size:11px;color:var(--color-text-tertiary);margin-left:6px;">${a.institution}</span>`:''}</td>
+          <td style="padding:4px 10px;font-weight:500;font-size:13px;display:flex;align-items:center;">${a.name}${a.institution?`<span style="font-size:11px;color:var(--color-text-tertiary);margin-left:6px;">${a.institution}</span>`:''}${indicator}</td>
           <td style="padding:4px 6px;"><input type="date" value="${d}" style="${INPUT}" onchange="markSnapEdit('${s.id}','date',this.value,'${s.as_of_date}',${s.balance},'${s.source||'manual'}')" /></td>
           <td style="padding:4px 6px;"><input type="number" value="${b}" step="0.01" style="${INPUT}text-align:right;" onchange="markSnapEdit('${s.id}','balance',this.value,'${s.as_of_date}',${s.balance},'${s.source||'manual'}')" /></td>
           <td style="padding:4px 6px;"><select style="${SELECT}" onchange="markSnapEdit('${s.id}','source',this.value,'${s.as_of_date}',${s.balance},'${s.source||'manual'}')">${sourceOpts(src)}</select></td>
@@ -980,7 +985,7 @@
       const newForAccount = snapNewRows.filter(r => r.account_id === a.id);
       for (const nr of newForAccount) {
         html += `<tr style="border-left:3px solid #3b6d11; border-bottom:0.5px solid var(--color-border); background:var(--color-bg);">
-          <td style="padding:4px 10px;font-size:12px;color:var(--color-success-text);">↳ ${a.name} <span style="font-size:10px;">(new)</span></td>
+          <td style="padding:4px 10px;font-size:13px;font-weight:500;display:flex;align-items:center;">↳ ${a.name}<span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:#3b6d11;color:white;font-size:12px;font-weight:700;margin-left:8px;flex-shrink:0;">+</span></td>
           <td style="padding:4px 6px;"><input type="date" value="${nr.date}" style="${INPUT}" onchange="updateNewRow('${nr.tempId}','date',this.value)" /></td>
           <td style="padding:4px 6px;"><input type="number" value="${nr.balance}" step="0.01" style="${INPUT}text-align:right;" onchange="updateNewRow('${nr.tempId}','balance',this.value)" /></td>
           <td style="padding:4px 6px;"><select style="${SELECT}" onchange="updateNewRow('${nr.tempId}','source',this.value)">${sourceOpts(nr.source)}</select></td>
