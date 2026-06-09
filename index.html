@@ -956,7 +956,29 @@
   function setSnapMode(accountId, mode) {
     if (!window.snapGridMode) window.snapGridMode = {};
     window.snapGridMode[accountId] = mode;
-    // Don't re-render — just track mode; saveAllSnapshots reads it
+    const today = new Date().toISOString().split('T')[0];
+    const latest = snapGridLatest[accountId];
+    // Pre-populate data structures so unchanged values still save
+    if (mode === 'edit' && latest) {
+      if (!snapGridEdits[accountId]) {
+        snapGridEdits[accountId] = {
+          id: latest.id,
+          date: latest.as_of_date,
+          balance: latest.balance,
+          source: latest.source || 'manual',
+          allowZero: false
+        };
+      }
+    } else if (mode === 'new') {
+      if (!snapGridNew[accountId]) {
+        snapGridNew[accountId] = {
+          date: today,
+          balance: latest ? latest.balance : '',
+          source: latest ? (latest.source || 'manual') : 'manual',
+          allowZero: false
+        };
+      }
+    }
   }
 
   function snapSetField(accountId, field, value) {
