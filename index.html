@@ -1357,8 +1357,8 @@
     const months = getMonthsForPeriod(cfPeriod, allMonths);
     if (!months.length) { document.getElementById('cf-table-container').innerHTML = '<p class="placeholder">No data for this period.</p>'; return; }
 
-    const groups = ['Bills','Frequent','Non-Monthly','Quality of Life'];
-    const groupColors = { 'Bills':'#a32d2d','Frequent':'#185fa5','Non-Monthly':'#854f0b','Quality of Life':'#3b6d11' };
+    const groups = ['Bills','Frequent','Non-Monthly','Quality of Life','Transfers'];
+    const groupColors = { 'Bills':'#a32d2d','Frequent':'#185fa5','Non-Monthly':'#854f0b','Quality of Life':'#3b6d11','Transfers':'#534ab7' };
 
     // Build lookup
     const lookup = {};
