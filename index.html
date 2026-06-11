@@ -1549,7 +1549,7 @@
     if (startingCash.hasGoodSnapshot) html += `<p style="font-size:12px;color:var(--color-text-tertiary);margin-top:4px;">Cash balance starts from $${Math.round(startingCash.total).toLocaleString()} (checking + savings snapshot). Credit card charges reflected when payment is made, not at time of purchase.</p>`;
 
     document.getElementById('cf-table-container').innerHTML = warningHtml + html;
-    document.getElementById('cf-loading').style.display = 'none';
+    const cfLoadingEl = document.getElementById('cf-loading'); if (cfLoadingEl) cfLoadingEl.style.display = 'none';
   }
   function toggleGroup(g) {
     if (expandedGroups.has(g)) expandedGroups.delete(g);
@@ -1665,6 +1665,10 @@
   }
 
   async function initCashFlow() {
+    if (!cfAccounts.length) {
+      cfAccounts = await sb('accounts?is_active=eq.true');
+      cfSnapshots = await sb('account_snapshots?order=as_of_date.desc,created_at.desc');
+    }
     await loadCashFlowData();
     renderCashFlow();
   }
@@ -2917,8 +2921,8 @@
       data: {
         labels,
         datasets: [
-          { label: 'Charges', data: chargeData, backgroundColor: 'rgba(163,45,45,0.7)', stack: 'cc' },
-          { label: 'Payments', data: paymentData, backgroundColor: 'rgba(59,109,17,0.7)', stack: 'cc' },
+          { label: 'Payments', data: months.map(m => Math.round(monthPayments[m]||0)), backgroundColor: 'rgba(59,109,17,0.7)', stack: 'cc' },
+          { label: 'Charges', data: months.map(m => -Math.round(monthCharges[m]||0)), backgroundColor: 'rgba(163,45,45,0.7)', stack: 'cc' },
           { label: 'Net balance change', data: netData, type: 'line', borderColor: '#534ab7', backgroundColor: '#534ab7', borderWidth: 2, pointRadius: 4, tension: 0.3 }
         ]
       },
@@ -2940,7 +2944,44 @@
     if (showAvg) html += '<th class="cf-total-col">Avg/mo</th>';
     html += '</tr></thead><tbody>';
 
+    // Opening balance from snapshots
+    const creditPeriodStart = getPeriodStartDate(creditPeriod);
+    let openingBalance = 0;
+    for (const a of cfAccounts.filter(a => a.type==='credit_card')) {
+      const snap = cfSnapshots.find(s => s.account_id===a.id && new Date(s.as_of_date+'T12:00:00') <= creditPeriodStart);
+      if (snap) openingBalance += snap.balance;
+    }
+    const hasOpeningSnap = openingBalance > 0;
+
+    // Running CC balance
+    let runningCCBal = openingBalance;
+    const monthEndCCBal = {};
+    for (const m of months) {
+      runningCCBal += (monthCharges[m]||0) - (monthPayments[m]||0);
+      monthEndCCBal[m] = runningCCBal;
+    }
+
     // Summary rows
+    // Opening balance row
+    if (hasOpeningSnap) {
+      html += `<tr style="border-bottom:0.5px solid var(--color-border);"><td style="color:var(--color-text-secondary);">Opening CC balance</td>`;
+      html += `<td style="color:var(--color-danger-text);">${fmt(openingBalance)}</td>`;
+      for (let i=1;i<months.length;i++) html += '<td>—</td>';
+      if (showTotal) html += '<td class="cf-total-col">—</td>';
+      if (showAvg) html += '<td class="cf-total-col">—</td>';
+      html += '</tr>';
+    }
+
+    // Running CC balance row
+    html += '<tr style="border-bottom:0.5px solid var(--color-border); font-weight:500;"><td>CC balance (month-end)</td>';
+    for (const m of months) {
+      const v = monthEndCCBal[m];
+      html += `<td style="color:var(--color-danger-text);">${fmt(v)}</td>`;
+    }
+    if (showTotal) html += '<td class="cf-total-col">—</td>';
+    if (showAvg) html += '<td class="cf-total-col">—</td>';
+    html += '</tr>';
+
     // Payments row
     html += '<tr class="cf-row-income"><td>Payments received</td>';
     let payTotal = 0;
