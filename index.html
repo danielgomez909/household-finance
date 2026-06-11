@@ -340,6 +340,11 @@
           <div id="bs-529-rows"></div>
           <div style="display:flex; justify-content:space-between; font-size:13px; font-weight:500; padding-top:4px; border-top:0.5px solid var(--color-border); margin-top:4px;"><span>Subtotal</span><span id="bs-529-total">—</span></div>
         </div>
+        <div class="card" style="padding:0.75rem;" id="bs-insurance-card">
+          <div class="card-title" style="margin-bottom:6px;">Life insurance (cash value)</div>
+          <div id="bs-insurance-rows"></div>
+          <div style="display:flex; justify-content:space-between; font-size:13px; font-weight:500; padding-top:4px; border-top:0.5px solid var(--color-border); margin-top:4px;"><span>Subtotal</span><span id="bs-insurance-total">—</span></div>
+        </div>
         <div class="card" style="padding:0.75rem;">
           <div class="card-title" style="margin-bottom:6px;">Real estate</div>
           <div id="bs-realestate-rows"></div>
@@ -572,6 +577,7 @@
               <option value="investment">Investment / brokerage</option>
               <option value="retirement">Retirement (401k / IRA)</option>
               <option value="529">529 (education savings)</option>
+              <option value="life_insurance">Life insurance (cash value)</option>
               <option value="real_estate">Real estate</option>
               <option value="mortgage">Mortgage</option>
               <option value="credit_card">Credit card</option>
@@ -2729,14 +2735,15 @@
     const fmtDate = d => new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'});
 
     const groups = {
-      cash:       { types: ['checking','savings'],  accounts: [] },
-      investment: { types: ['investment'],           accounts: [] },
-      retirement: { types: ['retirement'],           accounts: [] },
-      edu529:     { types: ['529'],                  accounts: [] },
-      realestate: { types: ['real_estate'],          accounts: [] },
-      cc:         { types: ['credit_card'],          accounts: [] },
-      loans:      { types: ['loan'],                 accounts: [] },
-      mortgage:   { types: ['mortgage'],             accounts: [] },
+      cash:         { types: ['checking','savings'],    accounts: [] },
+      investment:   { types: ['investment'],             accounts: [] },
+      retirement:   { types: ['retirement'],             accounts: [] },
+      edu529:       { types: ['529'],                    accounts: [] },
+      realestate:   { types: ['real_estate'],            accounts: [] },
+      insurance:    { types: ['life_insurance'],         accounts: [] },
+      cc:           { types: ['credit_card'],            accounts: [] },
+      loans:        { types: ['loan'],                   accounts: [] },
+      mortgage:     { types: ['mortgage'],               accounts: [] },
     };
 
     for (const a of accounts) {
@@ -2776,6 +2783,7 @@
     const retire  = renderRows('bs-retirement-rows', 'bs-retirement-total', null,            groups.retirement.accounts, false);
     const edu     = renderRows('bs-529-rows',        'bs-529-total',        null,            groups.edu529.accounts,     false);
     const reale   = renderRows('bs-realestate-rows', 'bs-realestate-total', null,            groups.realestate.accounts, false);
+    const insur   = renderRows('bs-insurance-rows',  'bs-insurance-total',  null,            groups.insurance.accounts,  false);
     const cc      = renderRows('bs-cc-rows',         'bs-cc-total',         'bs-cc-avail',   groups.cc.accounts,         true);
     const loans   = renderRows('bs-loans-rows',      'bs-loans-total',      'bs-loans-avail',groups.loans.accounts,      true);
     const mort    = renderRows('bs-mortgage-rows',   'bs-mortgage-total',   null,            groups.mortgage.accounts,   true);
@@ -2783,8 +2791,10 @@
     // Hide 529 card if no accounts
     const card529 = document.getElementById('bs-529-card');
     if (card529) card529.style.display = groups.edu529.accounts.length ? 'block' : 'none';
+    const cardInsur = document.getElementById('bs-insurance-card');
+    if (cardInsur) cardInsur.style.display = groups.insurance.accounts.length ? 'block' : 'none';
 
-    const totalAssets = cash.total + invest.total + retire.total + edu.total + reale.total;
+    const totalAssets = cash.total + invest.total + retire.total + edu.total + reale.total + insur.total;
     const totalLiab   = cc.total + loans.total + mort.total;
     const netWorth    = totalAssets - totalLiab;
     const liquid      = cash.total + invest.total;
