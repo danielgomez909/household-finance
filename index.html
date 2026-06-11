@@ -572,6 +572,12 @@
             <input type="number" id="acc-limit" placeholder="0" step="100" />
           </div>
           <div class="form-group">
+            <label>Register name <span style="font-size:11px; color:var(--color-text-tertiary);">(exact name in YNAB export)</span></label>
+            <input type="text" id="acc-register-name" placeholder="e.g. WF Checking" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group full">
             <label>Notes (optional)</label>
             <input type="text" id="acc-notes" placeholder="Any notes about this account" />
           </div>
@@ -823,6 +829,7 @@
     document.getElementById('acc-type').value = a.type;
     document.getElementById('acc-category').value = a.category;
     document.getElementById('acc-notes').value = a.notes || '';
+    document.getElementById('acc-register-name').value = a.register_name || '';
     document.getElementById('acc-limit').value = a.credit_limit || '';
     document.getElementById('acc-editing-id').value = a.id;
     document.getElementById('acc-save-btn').innerHTML = '<i class="ti ti-device-floppy"></i> Save changes';
@@ -835,7 +842,7 @@
     document.getElementById('acc-editing-id').value = '';
     document.getElementById('acc-save-btn').innerHTML = '<i class="ti ti-plus"></i> Add account';
     document.getElementById('acc-cancel-btn').style.display = 'none';
-    ['acc-name','acc-institution','acc-notes','acc-limit'].forEach(id => document.getElementById(id).value = '');
+    ['acc-name','acc-institution','acc-notes','acc-limit','acc-register-name'].forEach(id => document.getElementById(id).value = '');
   }
 
   async function saveAccount() {
@@ -845,6 +852,7 @@
     const category = document.getElementById('acc-category').value;
     const notes = document.getElementById('acc-notes').value.trim();
     const credit_limit = parseFloat(document.getElementById('acc-limit').value) || null;
+    const register_name = document.getElementById('acc-register-name').value.trim() || null;
     const editingId = document.getElementById('acc-editing-id').value;
     if (!name) return setStatus('acc-status', 'Account name is required.', 'error');
     try {
@@ -852,14 +860,14 @@
         await fetch(`${SUPABASE_URL}/rest/v1/accounts?id=eq.${editingId}`, {
           method: 'PATCH',
           headers: { ...sbHeaders, 'Prefer': 'return=minimal' },
-          body: JSON.stringify({ name, institution, type, category, notes, credit_limit })
+          body: JSON.stringify({ name, institution, type, category, notes, credit_limit, register_name })
         });
         setStatus('acc-status', 'Account updated.', 'success');
         cancelAccountEdit();
       } else {
-        await sb('accounts', 'POST', { name, institution, type, category, notes, credit_limit });
+        await sb('accounts', 'POST', { name, institution, type, category, notes, credit_limit, register_name });
         setStatus('acc-status', 'Account added.', 'success');
-        ['acc-name','acc-institution','acc-notes','acc-limit'].forEach(id => document.getElementById(id).value = '');
+        ['acc-name','acc-institution','acc-notes','acc-limit','acc-register-name'].forEach(id => document.getElementById(id).value = '');
       }
       loadAccounts();
     } catch (e) { setStatus('acc-status', 'Error: ' + e.message, 'error'); }
@@ -876,6 +884,7 @@
             <span style="font-weight:500;">${a.name}</span>
             ${a.institution ? `<span style="color:var(--color-text-secondary); margin-left:8px; font-size:13px;">${a.institution}</span>` : ''}
             ${a.credit_limit ? `<span style="font-size:12px; color:var(--color-text-tertiary); margin-left:8px;">limit $${Math.round(a.credit_limit).toLocaleString()}</span>` : ''}
+            ${a.register_name ? `<span style="font-size:11px; color:var(--color-text-tertiary); margin-left:8px;">reg: ${a.register_name}</span>` : '<span style="font-size:11px; color:var(--color-danger-text); margin-left:8px;">no register name</span>'}
           </div>
           <div style="display:flex; align-items:center; gap:8px;">
             <span class="badge">${a.type.replace(/_/g,' ')}</span>
@@ -2354,7 +2363,7 @@
     reader.readAsText(file);
   }
 
-  // Register file import (replaces YNAB transactions import)
+  // Register file import
   async function handleRegisterUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -2363,52 +2372,122 @@
       const lines = e.target.result.split('\n').filter(l => l.trim());
       const hdrs = parseCSVLine(lines[0]);
       const cutoff = new Date('2025-01-01');
-      const skipGroups = new Set(['Hidden Categories','']);
+      const skipGroups = new Set(['Hidden Categories', '']);
+
+      // Build register_name -> account lookup
+      const allAccounts = await sb('accounts?is_active=eq.true');
+      const registerMap = {}; // register_name -> account
+      for (const a of allAccounts) {
+        if (a.register_name) registerMap[a.register_name] = a;
+      }
+
+      // Define cash container account ids (checking + savings)
+      const cashContainerIds = new Set(
+        allAccounts.filter(a => a.type === 'checking' || a.type === 'savings').map(a => a.id)
+      );
+      // Credit card account ids
+      const creditCardIds = new Set(
+        allAccounts.filter(a => a.type === 'credit_card').map(a => a.id)
+      );
 
       const rows = lines.slice(1).map(line => {
         const vals = parseCSVLine(line);
-        return Object.fromEntries(hdrs.map((h,i) => [h, vals[i]||'']));
+        return Object.fromEntries(hdrs.map((h, i) => [h, vals[i] || '']));
       }).filter(r => {
-        if (!r['Date'] || !r['Category Group']) return false;
-        if (skipGroups.has(r['Category Group'])) return false;
+        if (!r['Date']) return false;
         const parts = r['Date'].split('/');
         return new Date(`${parts[2]}-${parts[0]}-${parts[1]}`) >= cutoff;
       });
 
+      // Aggregate by month / account / category_group / category
       const aggregated = {};
       for (const r of rows) {
         const parts = r['Date'].split('/');
         const month = `${parts[2]}-${parts[0].padStart(2,'0')}-01`;
-        const group = r['Category Group'];
+        const acctName = r['Account'] || '';
+        const acct = registerMap[acctName];
+        const acctId = acct ? acct.id : null;
+        const acctType = acct ? acct.type : null;
+        const group = r['Category Group'] || '';
         const isInflow = group === 'Inflow';
-        const payee = (r['Payee']||'').toUpperCase();
-        const isSlalom = isInflow && payee.includes('SLALOM');
-        const payeeTag = isInflow ? (isSlalom?'slalom':'other') : null;
-        const category = isInflow ? (isSlalom?'Slalom':'Other income') : (r['Category']||group);
-        const key = `${month}||${group}||${category}`;
-        if (!aggregated[key]) aggregated[key] = { month, category, category_group:group, payee_tag:payeeTag, outflow:0, inflow:0 };
+        const isHidden = group === 'Hidden Categories';
+        if (isHidden) continue;
+
+        // Determine if this is a transfer
+        const payee = r['Payee'] || '';
+        const isTransfer = payee.startsWith('Transfer :');
+        const transferTarget = isTransfer ? payee.replace('Transfer : ', '').trim() : null;
+        const transferTargetAcct = transferTarget ? registerMap[transferTarget] : null;
+        const transferTargetId = transferTargetAcct ? transferTargetAcct.id : null;
+
+        // For cash container accounts: skip intra-container transfers
+        if (acctId && cashContainerIds.has(acctId) && isTransfer && transferTargetId && cashContainerIds.has(transferTargetId)) {
+          continue; // skip e.g. WF Checking -> WF Savings
+        }
+
+        const payeeTag = isInflow
+          ? ((r['Payee']||'').toUpperCase().includes('SLALOM') ? 'slalom' : 'other')
+          : null;
+
+        const category = isInflow
+          ? ((r['Payee']||'').toUpperCase().includes('SLALOM') ? 'Slalom' : 'Other income')
+          : isTransfer
+            ? (transferTarget || 'Transfer')
+            : (r['Category'] || group || 'Uncategorized');
+
+        const categoryGroup = isInflow ? 'Inflow'
+          : isTransfer ? 'Transfers'
+          : (group || 'Uncategorized');
+
+        const key = `${month}||${acctName}||${categoryGroup}||${category}`;
+        if (!aggregated[key]) {
+          aggregated[key] = {
+            month, category, category_group: categoryGroup,
+            account_id: acctId, payee_tag: payeeTag,
+            outflow: 0, inflow: 0
+          };
+        }
         aggregated[key].outflow += parseFloat((r['Outflow']||'0').replace(/[$,]/g,''))||0;
         aggregated[key].inflow += parseFloat((r['Inflow']||'0').replace(/[$,]/g,''))||0;
       }
 
       const records = Object.values(aggregated).map(a => ({
-        month: a.month, category: a.category, category_group: a.category_group,
-        budgeted: 0, payee_tag: a.payee_tag||null,
-        actual: a.category_group==='Inflow' ? parseFloat((a.inflow-a.outflow).toFixed(2)) : parseFloat((a.outflow-a.inflow).toFixed(2)),
+        month: a.month,
+        category: a.category,
+        category_group: a.category_group,
+        account_id: a.account_id || null,
+        budgeted: 0,
+        payee_tag: a.payee_tag || null,
+        actual: a.category_group === 'Inflow'
+          ? parseFloat((a.inflow - a.outflow).toFixed(2))
+          : parseFloat((a.outflow - a.inflow).toFixed(2)),
         source: 'ynab_import'
       }));
 
-      const incomeCount = records.filter(r=>r.category_group==='Inflow').length;
-      const spendingCount = records.length - incomeCount;
-      const upsertHdrs = { 'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'resolution=merge-duplicates,return=minimal' };
+      const incomeCount = records.filter(r => r.category_group === 'Inflow').length;
+      const transferCount = records.filter(r => r.category_group === 'Transfers').length;
+      const spendingCount = records.length - incomeCount - transferCount;
+
+      document.getElementById('register-status') && (document.getElementById('register-status').textContent =
+        `Parsed: ${spendingCount} spending + ${incomeCount} income + ${transferCount} transfer records. Uploading...`);
+
+      const upsertHdrs = {
+        'Content-Type': 'application/json', 'apikey': SUPABASE_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_KEY,
+        'Prefer': 'resolution=merge-duplicates,return=minimal'
+      };
       try {
-        await fetch(SUPABASE_URL+'/rest/v1/transactions?source=eq.ynab_import', { method:'DELETE', headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY} });
-        for (let i=0;i<records.length;i+=50) {
-          const res = await fetch(SUPABASE_URL+'/rest/v1/transactions', { method:'POST', headers:upsertHdrs, body:JSON.stringify(records.slice(i,i+50)) });
-          if (!res.ok) { const err=await res.json().catch(()=>({})); throw new Error(err.message||'Failed'); }
+        await fetch(SUPABASE_URL+'/rest/v1/transactions?source=eq.ynab_import', {
+          method: 'DELETE', headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+        });
+        for (let i = 0; i < records.length; i += 50) {
+          const res = await fetch(SUPABASE_URL+'/rest/v1/transactions', {
+            method: 'POST', headers: upsertHdrs, body: JSON.stringify(records.slice(i, i+50))
+          });
+          if (!res.ok) { const err = await res.json().catch(()=>({})); throw new Error(err.message||'Failed'); }
         }
-        setStatus('register-status', `Imported ${records.length} records: ${spendingCount} spending + ${incomeCount} income (Jan 2025 onward).`, 'success');
-      } catch(e) { setStatus('register-status', 'Error: '+e.message, 'error'); }
+        setStatus('register-status', `Imported ${records.length} records: ${spendingCount} spending + ${incomeCount} income + ${transferCount} transfers (Jan 2025 onward).`, 'success');
+      } catch(e) { setStatus('register-status', 'Error: ' + e.message, 'error'); }
     };
     reader.readAsText(file);
   }
