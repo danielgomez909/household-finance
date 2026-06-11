@@ -280,6 +280,7 @@
     <button class="nav-tab active" onclick="showTab('dashboard', this)"><i class="ti ti-layout-dashboard"></i> Dashboard</button>
     <button class="nav-tab" onclick="showTab('balance', this)"><i class="ti ti-scale"></i> Balance sheet</button>
     <button class="nav-tab" onclick="showTab('cashflow', this)"><i class="ti ti-arrows-exchange"></i> Cash flow</button>
+    <button class="nav-tab" onclick="showTab('creditflow', this)"><i class="ti ti-credit-card"></i> Credit flow</button>
     <button class="nav-tab" onclick="showTab('whatif', this)"><i class="ti ti-adjustments"></i> What-if</button>
     <button class="nav-tab" onclick="showTab('plan', this)"><i class="ti ti-chart-bar"></i> Plan</button>
     <button class="nav-tab" onclick="showTab('admin', this)"><i class="ti ti-settings"></i> Admin</button>
@@ -394,6 +395,25 @@
     </div>
     <div id="cf-table-container" style="overflow-x:auto;">
       <div id="cf-loading" class="placeholder"><i class="ti ti-loader"></i> Loading...</div>
+    </div>
+  </div>
+
+  <!-- Credit Flow -->
+  <div id="tab-creditflow" class="panel">
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:1.5rem; flex-wrap:wrap;">
+      <div style="display:flex; gap:6px; flex-wrap:wrap;">
+        <button class="period-btn" onclick="setCfCreditPeriod('month',this)">This month</button>
+        <button class="period-btn active" onclick="setCfCreditPeriod('ytd',this)">YTD</button>
+        <button class="period-btn" onclick="setCfCreditPeriod('3',this)">3 months</button>
+        <button class="period-btn" onclick="setCfCreditPeriod('6',this)">6 months</button>
+        <button class="period-btn" onclick="setCfCreditPeriod('12',this)">12 months</button>
+      </div>
+    </div>
+    <div id="credit-chart-container" style="margin-bottom:1.5rem;">
+      <canvas id="credit-chart" height="120"></canvas>
+    </div>
+    <div id="credit-table-container">
+      <div class="placeholder"><i class="ti ti-loader"></i> Loading...</div>
     </div>
   </div>
 
@@ -794,6 +814,7 @@
     document.getElementById('tab-' + name).classList.add('active');
     if (name === 'admin') { loadAccounts(); }
     if (name === 'cashflow') { initCashFlow(); }
+    if (name === 'creditflow') { initCreditFlow(); }
     if (name === 'whatif') { initWhatIf(); }
     if (name === 'plan') { initPlan(); }
     if (name === 'balance') { initBalanceSheet(); }
@@ -1206,6 +1227,7 @@
   // ── Cash Flow ──────────────────────────────────────────────
   let cfPeriod = 'month';
   let cfData = [];
+  let cfAllData = [];
   let cfChart = null;
   let expandedGroups = new Set();
 
@@ -1266,7 +1288,14 @@
   let cfAccounts = [];    // accounts with credit_limit
 
   async function loadCashFlowData() {
-    cfData = await sb('transactions?source=eq.ynab_import&order=month,category_group,category');
+    // Load all transactions — cash flow tab will filter to cash container accounts
+    const allTx = await sb('transactions?source=eq.ynab_import&order=month,category_group,category');
+    // Cash container = checking + savings accounts
+    const cashAcctIds = new Set(cfAccounts.filter(a => a.type==='checking'||a.type==='savings').map(a=>a.id));
+    // Cash flow data = transactions from cash container accounts only
+    cfData = allTx.filter(r => r.account_id && cashAcctIds.has(r.account_id));
+    // Store all data for credit flow
+    cfAllData = allTx;
     // Load checking + savings snapshots for running balance
     cfSnapshots = await sb('account_snapshots?order=as_of_date.desc,created_at.desc');
     // Load accounts for credit limit info
@@ -2795,6 +2824,189 @@
         body: JSON.stringify({ key: 'bs_notes', value, updated_at: new Date().toISOString() })
       });
     } catch(e) { console.error('Failed to save notes', e); }
+  }
+
+  // ── Credit Flow ───────────────────────────────────────────
+  let creditPeriod = 'ytd';
+  let creditChart = null;
+  let creditExpandedGroups = new Set();
+
+  function setCfCreditPeriod(p, el) {
+    document.querySelectorAll('#tab-creditflow .period-btn').forEach(b => b.classList.remove('active'));
+    el.classList.add('active');
+    creditPeriod = p;
+    renderCreditFlow();
+  }
+
+  async function initCreditFlow() {
+    if (!cfAccounts.length) {
+      cfAccounts = await sb('accounts?is_active=eq.true');
+      cfSnapshots = await sb('account_snapshots?order=as_of_date.desc,created_at.desc');
+    }
+    if (!cfAllData.length) {
+      cfAllData = await sb('transactions?source=eq.ynab_import&order=month,category_group,category');
+    }
+    renderCreditFlow();
+  }
+
+  function renderCreditFlow() {
+    const ccAcctIds = new Set(cfAccounts.filter(a => a.type==='credit_card').map(a => a.id));
+    const ccAcctMap = {};
+    for (const a of cfAccounts) if (a.type==='credit_card') ccAcctMap[a.id] = a;
+
+    // Filter to credit card account transactions
+    const ccData = cfAllData.filter(r => r.account_id && ccAcctIds.has(r.account_id));
+    const allMonths = [...new Set(ccData.map(r => r.month))].sort();
+    const months = getMonthsForPeriod(creditPeriod, allMonths);
+    if (!months.length) {
+      document.getElementById('credit-table-container').innerHTML = '<p class="placeholder">No credit card transaction data for this period.</p>';
+      return;
+    }
+
+    const fmt = v => v===0?'—':'$'+Math.round(Math.abs(v)).toLocaleString();
+    const fmtMonth = m => new Date(m+'T12:00:00').toLocaleDateString('en-US',{month:'short',year:'2-digit'});
+    const showTotal = months.length > 1;
+    const showAvg = months.length > 1;
+    const n = months.length;
+
+    // Build lookup: month -> category_group -> category -> actual
+    // Also track payments (Transfers group, inflow to CC = payment received)
+    const lookup = {};
+    const monthPayments = {}; // payments INTO the card (reduce balance)
+    const monthCharges = {};  // total charges out
+
+    for (const r of ccData) {
+      if (!months.includes(r.month)) continue;
+      if (r.category_group === 'Transfers') {
+        // Inflow to CC = payment from checking (reduces balance)
+        // actual is negative for inflow in our schema... wait, transfers are outflow from CC perspective
+        // actual > 0 means outflow from the CC account = charges
+        // For transfers INTO CC (payments): inflow to CC recorded as negative actual? 
+        // Let's check: transfer from WF Checking to Chase United
+        // WF Checking row: outflow=$X, actual=$X (positive)
+        // Chase United row: inflow=$X, actual=-$X (negative) — payment received
+        if (r.actual < 0) {
+          monthPayments[r.month] = (monthPayments[r.month]||0) + Math.abs(r.actual);
+        } else {
+          monthCharges[r.month] = (monthCharges[r.month]||0) + r.actual;
+        }
+        continue;
+      }
+      if (!lookup[r.month]) lookup[r.month] = {};
+      if (!lookup[r.month][r.category_group]) lookup[r.month][r.category_group] = {};
+      lookup[r.month][r.category_group][r.category] = (lookup[r.month][r.category_group][r.category]||0) + r.actual;
+      monthCharges[r.month] = (monthCharges[r.month]||0) + (r.actual > 0 ? r.actual : 0);
+    }
+
+    // Net balance change per month = charges - payments (positive = balance grew)
+    const monthNetChange = {};
+    for (const m of months) {
+      monthNetChange[m] = (monthCharges[m]||0) - (monthPayments[m]||0);
+    }
+
+    // Chart
+    const labels = months.map(fmtMonth);
+    const chargeData = months.map(m => Math.round(monthCharges[m]||0));
+    const paymentData = months.map(m => -Math.round(monthPayments[m]||0));
+    const netData = months.map(m => Math.round(monthNetChange[m]||0));
+
+    const ctx = document.getElementById('credit-chart').getContext('2d');
+    if (creditChart) creditChart.destroy();
+    creditChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          { label: 'Charges', data: chargeData, backgroundColor: 'rgba(163,45,45,0.7)', stack: 'cc' },
+          { label: 'Payments', data: paymentData, backgroundColor: 'rgba(59,109,17,0.7)', stack: 'cc' },
+          { label: 'Net balance change', data: netData, type: 'line', borderColor: '#534ab7', backgroundColor: '#534ab7', borderWidth: 2, pointRadius: 4, tension: 0.3 }
+        ]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { position: 'bottom', labels: { font: { size: 12 }, boxWidth: 12 } } },
+        scales: {
+          x: { grid: { display: false } },
+          y: { ticks: { callback: v => '$'+Math.abs(v/1000).toFixed(0)+'k' } }
+        }
+      }
+    });
+
+    // Table
+    const groups = [...new Set(ccData.filter(r=>months.includes(r.month)&&r.category_group!=='Transfers').map(r=>r.category_group))].sort();
+    let html = `<table class="cf-table"><thead><tr><th>Category</th>`;
+    for (const m of months) html += `<th>${fmtMonth(m)}</th>`;
+    if (showTotal) html += '<th class="cf-total-col">Total</th>';
+    if (showAvg) html += '<th class="cf-total-col">Avg/mo</th>';
+    html += '</tr></thead><tbody>';
+
+    // Summary rows
+    // Payments row
+    html += '<tr class="cf-row-income"><td>Payments received</td>';
+    let payTotal = 0;
+    for (const m of months) { const v=monthPayments[m]||0; payTotal+=v; html+=`<td style="color:var(--color-success-text);">${fmt(v)}</td>`; }
+    if (showTotal) html += `<td class="cf-total-col" style="color:var(--color-success-text);">${fmt(payTotal)}</td>`;
+    if (showAvg) html += `<td class="cf-total-col" style="color:var(--color-success-text);">${fmt(payTotal/n)}</td>`;
+    html += '</tr>';
+
+    // Total charges row
+    html += '<tr class="cf-row-surplus"><td>Total charges</td>';
+    let chargeTotal = 0;
+    for (const m of months) { const v=monthCharges[m]||0; chargeTotal+=v; html+=`<td>${fmt(v)}</td>`; }
+    if (showTotal) html += `<td class="cf-total-col">${fmt(chargeTotal)}</td>`;
+    if (showAvg) html += `<td class="cf-total-col">${fmt(chargeTotal/n)}</td>`;
+    html += '</tr>';
+
+    // Net change row
+    html += '<tr style="font-weight:500; border-bottom:1px solid var(--color-border-md);"><td>Net balance change</td>';
+    let netTotal = 0;
+    for (const m of months) {
+      const v=monthNetChange[m]||0; netTotal+=v;
+      html+=`<td style="color:${v>0?'var(--color-danger-text)':'var(--color-success-text)'};">${v>0?'+':''}${fmt(Math.abs(v))}</td>`;
+    }
+    if (showTotal) html += `<td class="cf-total-col" style="color:${netTotal>0?'var(--color-danger-text)':'var(--color-success-text)'};">${netTotal>0?'+':''}${fmt(Math.abs(netTotal))}</td>`;
+    if (showAvg) { const na=netTotal/n; html += `<td class="cf-total-col" style="color:${na>0?'var(--color-danger-text)':'var(--color-success-text)'};">${na>0?'+':''}${fmt(Math.abs(na))}</td>`; }
+    html += '</tr>';
+
+    // Separator
+    html += `<tr><td colspan="${months.length+(showTotal?1:0)+(showAvg?1:0)+1}" style="padding:3px;background:var(--color-bg-secondary);border-bottom:1px solid var(--color-border-md);"></td></tr>`;
+
+    // Spending by category group (expandable)
+    for (const g of groups) {
+      let gTotal = 0;
+      const monthTotals = months.map(m => {
+        const cats=(lookup[m]||{})[g]||{};
+        const t=Object.values(cats).reduce((a,b)=>a+b,0);
+        gTotal+=t; return t;
+      });
+      const expanded = creditExpandedGroups.has(g);
+      html += `<tr class="cf-row-group"><td onclick="toggleCreditGroup('${g}')">${expanded?'▾':'▸'} ${g}</td>`;
+      for (const t of monthTotals) html+=`<td>${fmt(t)}</td>`;
+      if (showTotal) html+=`<td class="cf-total-col">${fmt(gTotal)}</td>`;
+      if (showAvg) html+=`<td class="cf-total-col">${fmt(gTotal/n)}</td>`;
+      html+='</tr>';
+      if (expanded) {
+        const cats=[...new Set(ccData.filter(r=>r.category_group===g&&months.includes(r.month)).map(r=>r.category))].sort();
+        for (const cat of cats) {
+          html+=`<tr class="cf-row-category"><td>${cat}</td>`;
+          let cTotal=0;
+          for (const m of months) { const v=((lookup[m]||{})[g]||{})[cat]||0; cTotal+=v; html+=`<td>${fmt(v)}</td>`; }
+          if (showTotal) html+=`<td class="cf-total-col">${fmt(cTotal)}</td>`;
+          if (showAvg) html+=`<td class="cf-total-col">${fmt(cTotal/n)}</td>`;
+          html+='</tr>';
+        }
+      }
+    }
+
+    html += '</tbody></table>';
+    html += '<p style="font-size:12px;color:var(--color-text-tertiary);margin-top:8px;">Positive net balance change = balance grew (more charges than payments). Negative = balance reduced.</p>';
+    document.getElementById('credit-table-container').innerHTML = html;
+  }
+
+  function toggleCreditGroup(g) {
+    if (creditExpandedGroups.has(g)) creditExpandedGroups.delete(g);
+    else creditExpandedGroups.add(g);
+    renderCreditFlow();
   }
 
 </script>
