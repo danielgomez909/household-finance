@@ -256,6 +256,15 @@
     }
     .period-btn.active { background: var(--color-bg); color: var(--color-text-primary); font-weight:500; border-color: var(--color-border-md); }
 
+    .mood-btn { padding: 5px 12px; font-size: 13px; border-radius: var(--radius-md); cursor: pointer; border: 0.5px solid var(--color-border); background: transparent; color: var(--color-text-secondary); font-family: inherit; }
+    .mood-btn:hover { background: var(--color-bg-secondary); }
+    .mood-btn.selected { font-weight: 500; border-width: 1.5px; }
+    .mood-btn[data-mood="Great"].selected { background: #eaf3de; color: #3b6d11; border-color: #3b6d11; }
+    .mood-btn[data-mood="Good"].selected  { background: #e6f1fb; color: #185fa5; border-color: #185fa5; }
+    .mood-btn[data-mood="OK"].selected    { background: #f5f0e8; color: #7a6a3a; border-color: #7a6a3a; }
+    .mood-btn[data-mood="Poor"].selected  { background: #fef3e2; color: #b06000; border-color: #b06000; }
+    .mood-btn[data-mood="Awful"].selected { background: #fcebeb; color: #a32d2d; border-color: #a32d2d; }
+
     .cf-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 600px; }
     .cf-table th { text-align: right; padding: 8px 12px; font-weight:500; font-size:12px; color:var(--color-text-secondary); border-bottom: 0.5px solid var(--color-border); white-space:nowrap; }
     .cf-table th:first-child { text-align:left; }
@@ -283,6 +292,8 @@
     <button class="nav-tab" onclick="showTab('creditflow', this)"><i class="ti ti-credit-card"></i> Credit flow</button>
     <button class="nav-tab" onclick="showTab('whatif', this)"><i class="ti ti-adjustments"></i> What-if</button>
     <button class="nav-tab" onclick="showTab('plan', this)"><i class="ti ti-chart-bar"></i> Plan</button>
+    <button class="nav-tab" onclick="showTab('diary', this)"><i class="ti ti-notebook"></i> Diary</button>
+    <button class="nav-tab" onclick="showTab('reference', this)"><i class="ti ti-info-circle"></i> Reference</button>
     <button class="nav-tab" onclick="showTab('admin', this)"><i class="ti ti-settings"></i> Admin</button>
   </nav>
 </header>
@@ -545,6 +556,170 @@
     </div>
   </div>
 
+  <!-- Diary -->
+  <div id="tab-diary" class="panel">
+    <!-- Metrics row -->
+    <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:1.25rem;">
+      <div class="metric-card"><div class="metric-label">Last rating</div><div id="diary-last-mood" style="font-size:18px; font-weight:500;">—</div><div id="diary-last-date" style="font-size:11px; color:var(--color-text-tertiary); margin-top:2px;"></div></div>
+      <div class="metric-card"><div class="metric-label">14d avg</div><div id="diary-avg" style="font-size:18px; font-weight:500;">—</div></div>
+      <div class="metric-card"><div class="metric-label">Good+ streak</div><div id="diary-good-streak" style="font-size:18px; font-weight:500;">—</div><div style="font-size:11px; color:var(--color-text-tertiary); margin-top:2px;">days since OK or worse</div></div>
+      <div class="metric-card"><div class="metric-label">No bad streak</div><div id="diary-bad-streak" style="font-size:18px; font-weight:500;">—</div><div style="font-size:11px; color:var(--color-text-tertiary); margin-top:2px;">days since Poor or Awful</div></div>
+    </div>
+
+    <!-- Chart -->
+    <div class="card" style="padding:1rem; margin-bottom:1rem;">
+      <div style="font-size:13px; font-weight:500; margin-bottom:8px; color:var(--color-text-secondary);">21-Day Window <span style="font-weight:400;">14 days back · 7 days forward</span></div>
+      <canvas id="diary-chart" height="100"></canvas>
+    </div>
+
+    <!-- New entry -->
+    <div class="card" style="padding:1rem; margin-bottom:1rem;">
+      <div class="card-title">New entry</div>
+      <div style="display:grid; grid-template-columns:140px 1fr; gap:12px; margin-bottom:10px;">
+        <div class="form-group">
+          <label>Date</label>
+          <input type="date" id="diary-date" style="font-size:13px; padding:5px 8px;" />
+        </div>
+        <div class="form-group">
+          <label>Mood</label>
+          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:2px;">
+            <button class="mood-btn" data-mood="Great" data-score="5" onclick="selectMood(this)">Great</button>
+            <button class="mood-btn" data-mood="Good" data-score="4" onclick="selectMood(this)">Good</button>
+            <button class="mood-btn" data-mood="OK" data-score="3" onclick="selectMood(this)">OK</button>
+            <button class="mood-btn" data-mood="Poor" data-score="2" onclick="selectMood(this)">Poor</button>
+            <button class="mood-btn" data-mood="Awful" data-score="1" onclick="selectMood(this)">Awful</button>
+          </div>
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom:8px;">
+        <label>General notes / how I'm feeling</label>
+        <textarea id="diary-notes" rows="2" style="font-size:13px; resize:vertical; width:100%; padding:6px 8px; border:0.5px solid var(--color-border-md); border-radius:var(--radius-md); font-family:inherit; background:var(--color-bg); color:var(--color-text-primary);"></textarea>
+      </div>
+      <div class="form-group" style="margin-bottom:8px;">
+        <label>Stressors</label>
+        <textarea id="diary-stressors" rows="2" style="font-size:13px; resize:vertical; width:100%; padding:6px 8px; border:0.5px solid var(--color-border-md); border-radius:var(--radius-md); font-family:inherit; background:var(--color-bg); color:var(--color-text-primary);"></textarea>
+      </div>
+      <div class="form-group" style="margin-bottom:10px;">
+        <label>What I'm thinking about proactively</label>
+        <textarea id="diary-proactive" rows="2" style="font-size:13px; resize:vertical; width:100%; padding:6px 8px; border:0.5px solid var(--color-border-md); border-radius:var(--radius-md); font-family:inherit; background:var(--color-bg); color:var(--color-text-primary);"></textarea>
+      </div>
+      <button class="btn btn-primary" onclick="saveDiaryEntry()"><i class="ti ti-device-floppy"></i> Save entry</button>
+      <div id="diary-status" class="status"></div>
+    </div>
+
+    <!-- Recent entries -->
+    <div class="card" style="padding:1rem;">
+      <div class="card-title">Recent entries</div>
+      <div id="diary-log"><p class="placeholder">No entries yet.</p></div>
+    </div>
+  </div>
+
+  <!-- Reference -->
+  <div id="tab-reference" class="panel">
+    <div id="reference-content" style="max-width:860px; margin:0 auto; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; font-size:14px; line-height:1.7; color:var(--color-text-primary);">
+      <h2 style="font-size:20px; font-weight:600; margin-bottom:4px;">Household Finance App</h2>
+      <p style="color:var(--color-text-secondary); margin-bottom:1.5rem;">Personal financial command center · <a href="https://household-finance-drab.vercel.app/" style="color:var(--color-text-secondary);">household-finance-drab.vercel.app</a> · <a href="https://github.com/danielgomez909/household-finance" style="color:var(--color-text-secondary);">github.com/danielgomez909/household-finance</a></p>
+
+      <div style="background:var(--color-bg-secondary); border-radius:8px; padding:1rem; margin-bottom:1.5rem;">
+        <div style="font-size:12px; font-weight:500; text-transform:uppercase; letter-spacing:0.05em; color:var(--color-text-secondary); margin-bottom:8px;">Architecture</div>
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:13px;">
+          <span style="background:var(--color-bg); border:0.5px solid var(--color-border-md); border-radius:6px; padding:6px 12px;">Browser (iPad / desktop)</span>
+          <span>→</span><span style="background:var(--color-bg); border:0.5px solid var(--color-border-md); border-radius:6px; padding:6px 12px;">Vercel (static host)</span>
+          <span>→</span><span style="background:var(--color-bg); border:0.5px solid var(--color-border-md); border-radius:6px; padding:6px 12px;">Supabase (Postgres REST)</span>
+          <span style="margin-left:8px;">·</span>
+          <span style="background:var(--color-bg); border:0.5px solid var(--color-border-md); border-radius:6px; padding:6px 12px;">GitHub repo</span>
+          <span>→</span><span style="background:var(--color-bg); border:0.5px solid var(--color-border-md); border-radius:6px; padding:6px 12px;">Vercel auto-deploy (~30s)</span>
+        </div>
+        <div style="font-size:12px; color:var(--color-text-tertiary); margin-top:8px;">Supabase project: <code style="font-family:monospace; background:var(--color-bg); padding:1px 5px; border-radius:3px;">ntrhptxetvdjhoqfaytl</code> · Repo: <code style="font-family:monospace; background:var(--color-bg); padding:1px 5px; border-radius:3px;">danielgomez909/household-finance</code></div>
+      </div>
+
+      <div style="font-size:14px; font-weight:600; margin-bottom:8px;">Database tables</div>
+      <table style="width:100%; border-collapse:collapse; font-size:13px; margin-bottom:1.5rem;">
+        <thead><tr style="border-bottom:1px solid var(--color-border-md);"><th style="text-align:left; padding:6px 8px; color:var(--color-text-secondary); font-size:11px; text-transform:uppercase; letter-spacing:0.05em;">Table</th><th style="text-align:left; padding:6px 8px; color:var(--color-text-secondary); font-size:11px; text-transform:uppercase; letter-spacing:0.05em;">Purpose</th><th style="text-align:left; padding:6px 8px; color:var(--color-text-secondary); font-size:11px; text-transform:uppercase; letter-spacing:0.05em;">Key columns</th></tr></thead>
+        <tbody>
+          <tr style="border-bottom:0.5px solid var(--color-border);"><td style="padding:6px 8px; font-family:monospace;">accounts</td><td style="padding:6px 8px;">All financial accounts and assets/liabilities</td><td style="padding:6px 8px; color:var(--color-text-secondary);">name, type, category, institution, credit_limit, register_name</td></tr>
+          <tr style="border-bottom:0.5px solid var(--color-border);"><td style="padding:6px 8px; font-family:monospace;">account_snapshots</td><td style="padding:6px 8px;">Periodic balance captures</td><td style="padding:6px 8px; color:var(--color-text-secondary);">account_id, balance, as_of_date, source</td></tr>
+          <tr style="border-bottom:0.5px solid var(--color-border);"><td style="padding:6px 8px; font-family:monospace;">transactions</td><td style="padding:6px 8px;">Monthly aggregated actuals from YNAB Register CSV</td><td style="padding:6px 8px; color:var(--color-text-secondary);">month, category, category_group, account_id, actual, payee_tag</td></tr>
+          <tr style="border-bottom:0.5px solid var(--color-border);"><td style="padding:6px 8px; font-family:monospace;">plans</td><td style="padding:6px 8px;">Monthly assigned amounts from YNAB Plan CSV</td><td style="padding:6px 8px; color:var(--color-text-secondary);">month, category, category_group, assigned</td></tr>
+          <tr style="border-bottom:0.5px solid var(--color-border);"><td style="padding:6px 8px; font-family:monospace;">envelope_targets</td><td style="padding:6px 8px;">User-defined targets per envelope with date ranges</td><td style="padding:6px 8px; color:var(--color-text-secondary);">category, envelope, frequency, amount, per_month, period_start, period_end, status</td></tr>
+          <tr style="border-bottom:0.5px solid var(--color-border);"><td style="padding:6px 8px; font-family:monospace;">settings</td><td style="padding:6px 8px;">Key/value app settings (e.g. balance sheet notes)</td><td style="padding:6px 8px; color:var(--color-text-secondary);">key, value</td></tr>
+          <tr style="border-bottom:0.5px solid var(--color-border);"><td style="padding:6px 8px; font-family:monospace;">finance_diary</td><td style="padding:6px 8px;">Financial diary/check-in entries</td><td style="padding:6px 8px; color:var(--color-text-secondary);">entry_date, mood, mood_score, general_notes, stressors, proactive_thoughts</td></tr>
+          <tr><td style="padding:6px 8px; font-family:monospace;">scenarios / scenario_items</td><td style="padding:6px 8px;">What-if scenario storage</td><td style="padding:6px 8px; color:var(--color-text-secondary);">name, income_monthly, category adjustments</td></tr>
+        </tbody>
+      </table>
+
+      <div style="font-size:14px; font-weight:600; margin-bottom:8px;">Account types</div>
+      <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:1.5rem; font-size:12px;">
+        <span style="background:var(--color-bg-secondary); border-radius:4px; padding:3px 8px;">checking</span>
+        <span style="background:var(--color-bg-secondary); border-radius:4px; padding:3px 8px;">savings</span>
+        <span style="background:var(--color-bg-secondary); border-radius:4px; padding:3px 8px;">hsa</span>
+        <span style="background:var(--color-bg-secondary); border-radius:4px; padding:3px 8px;">investment</span>
+        <span style="background:var(--color-bg-secondary); border-radius:4px; padding:3px 8px;">retirement</span>
+        <span style="background:var(--color-bg-secondary); border-radius:4px; padding:3px 8px;">529</span>
+        <span style="background:var(--color-bg-secondary); border-radius:4px; padding:3px 8px;">life_insurance</span>
+        <span style="background:var(--color-bg-secondary); border-radius:4px; padding:3px 8px;">real_estate</span>
+        <span style="background:var(--color-bg-secondary); border-radius:4px; padding:3px 8px;">mortgage</span>
+        <span style="background:var(--color-bg-secondary); border-radius:4px; padding:3px 8px;">credit_card</span>
+        <span style="background:var(--color-bg-secondary); border-radius:4px; padding:3px 8px;">loan</span>
+      </div>
+
+      <div style="font-size:14px; font-weight:600; margin-bottom:8px;">YNAB import workflow</div>
+      <ol style="font-size:13px; color:var(--color-text-secondary); padding-left:1.5rem; margin-bottom:1.5rem;">
+        <li style="margin-bottom:4px;">In YNAB → Export — produces Register CSV and Plan CSV</li>
+        <li style="margin-bottom:4px;">Delete existing data: <code style="font-family:monospace;">DELETE FROM transactions WHERE source='ynab_import'</code></li>
+        <li style="margin-bottom:4px;">Admin → Plan import → Upload Register file (links to accounts via register_name)</li>
+        <li style="margin-bottom:4px;">Admin → Plan import → Upload Plan file</li>
+      </ol>
+
+      <div style="font-size:14px; font-weight:600; margin-bottom:8px;">Deployment</div>
+      <ol style="font-size:13px; color:var(--color-text-secondary); padding-left:1.5rem; margin-bottom:1.5rem;">
+        <li style="margin-bottom:4px;">Get updated index.html from Claude</li>
+        <li style="margin-bottom:4px;">github.com/danielgomez909/household-finance → click index.html → pencil icon → select all → paste → commit</li>
+        <li style="margin-bottom:4px;">Vercel auto-deploys in ~30 seconds</li>
+      </ol>
+
+      <div style="font-size:14px; font-weight:600; margin-bottom:8px;">Full backlog</div>
+      <div style="font-size:13px; color:var(--color-text-secondary);">
+        <div style="font-weight:500; color:var(--color-text-primary); margin-bottom:4px;">High priority</div>
+        <ul style="padding-left:1.25rem; margin-bottom:10px;">
+          <li>What-if: envelope-level adjustments (not just category groups)</li>
+          <li>What-if: income modeling — base salary + occasional bonus layering</li>
+          <li>What-if: hybrid actuals YTD + forecast chart</li>
+          <li>Cash flow: credit flow starting balance (opening CC balance)</li>
+        </ul>
+        <div style="font-weight:500; color:var(--color-text-primary); margin-bottom:4px;">Medium priority</div>
+        <ul style="padding-left:1.25rem; margin-bottom:10px;">
+          <li>Tighten spacing and real estate across all tabs</li>
+          <li>Plan tab: consistent formatting across all three sub-tabs</li>
+          <li>Plan tab: inflows on all three sub-tabs + ability to set inflow targets</li>
+          <li>Plan tab: revisit collapsing Envelope comparison + Forward plan into one tab</li>
+          <li>Financial advisor portal import</li>
+        </ul>
+        <div style="font-weight:500; color:var(--color-text-primary); margin-bottom:4px;">Low priority</div>
+        <ul style="padding-left:1.25rem; margin-bottom:10px;">
+          <li>Dashboard tab</li>
+          <li>Net worth trend over time</li>
+          <li>GitHub Desktop setup</li>
+          <li>What-if: PDF export of scenario</li>
+          <li>What-if: export suggested YNAB envelope target adjustments</li>
+        </ul>
+        <div style="font-weight:500; color:var(--color-text-primary); margin-bottom:4px;">Future</div>
+        <ul style="padding-left:1.25rem; margin-bottom:10px;">
+          <li>App and DB security (RLS + authentication)</li>
+          <li>Cash flow: rolling balance from credit (min payment calculator)</li>
+          <li>Plan tab: bar charts alongside tabular data</li>
+          <li>Credit flow: opening CC balance starting point</li>
+          <li>Cash flow: inflows from investment accounts (HELOC, brokerage)</li>
+          <li>Custom app icon set for iOS/iPadOS home screen</li>
+          <li>Goals section on balance sheet (major anticipated expenditures — watch items)</li>
+          <li>Convert account types to a reference table</li>
+        </ul>
+      </div>
+
+      <div style="font-size:12px; color:var(--color-text-tertiary); margin-top:1.5rem; padding-top:1rem; border-top:0.5px solid var(--color-border);">Last updated September 2026</div>
+    </div>
+  </div>
+
   <!-- Admin -->
   <div id="tab-admin" class="panel">
     <div class="inner-tabs">
@@ -576,6 +751,7 @@
               <option value="savings">Savings</option>
               <option value="investment">Investment / brokerage</option>
               <option value="retirement">Retirement (401k / IRA)</option>
+              <option value="hsa">HSA (Health Savings Account)</option>
               <option value="529">529 (education savings)</option>
               <option value="life_insurance">Life insurance (cash value)</option>
               <option value="real_estate">Real estate</option>
@@ -824,6 +1000,7 @@
     if (name === 'whatif') { initWhatIf(); }
     if (name === 'plan') { initPlan(); }
     if (name === 'balance') { initBalanceSheet(); }
+    if (name === 'diary') { initDiary(); }
   }
 
   function showInnerTab(name, el) {
@@ -2735,7 +2912,7 @@
     const fmtDate = d => new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'});
 
     const groups = {
-      cash:         { types: ['checking','savings'],    accounts: [] },
+      cash:         { types: ['checking','savings','hsa'], accounts: [] },
       investment:   { types: ['investment'],             accounts: [] },
       retirement:   { types: ['retirement'],             accounts: [] },
       edu529:       { types: ['529'],                    accounts: [] },
@@ -3058,6 +3235,200 @@
     if (creditExpandedGroups.has(g)) creditExpandedGroups.delete(g);
     else creditExpandedGroups.add(g);
     renderCreditFlow();
+  }
+
+  // ── Finance Diary ─────────────────────────────────────────
+  let diaryChart = null;
+  let diaryEntries = [];
+  let selectedMood = null;
+  let selectedMoodScore = null;
+
+  function localToday() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+
+  function selectMood(btn) {
+    document.querySelectorAll('.mood-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    selectedMood = btn.dataset.mood;
+    selectedMoodScore = parseInt(btn.dataset.score);
+  }
+
+  function moodColor(mood) {
+    return { Great:'#3b6d11', Good:'#185fa5', OK:'#7a6a3a', Poor:'#b06000', Awful:'#a32d2d' }[mood] || '#888';
+  }
+
+  async function initDiary() {
+    document.getElementById('diary-date').value = localToday();
+    diaryEntries = await sb('finance_diary?order=entry_date.desc&limit=60');
+    renderDiaryMetrics();
+    renderDiaryChart();
+    renderDiaryLog();
+  }
+
+  function renderDiaryMetrics() {
+    if (!diaryEntries.length) return;
+    const latest = diaryEntries[0];
+    const moodEl = document.getElementById('diary-last-mood');
+    moodEl.textContent = latest.mood;
+    moodEl.style.color = moodColor(latest.mood);
+    document.getElementById('diary-last-date').textContent = latest.entry_date;
+
+    // 14-day avg
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 14);
+    const recent = diaryEntries.filter(e => new Date(e.entry_date+'T12:00:00') >= cutoff);
+    const avg = recent.length ? (recent.reduce((s,e) => s+e.mood_score,0)/recent.length).toFixed(1) : '—';
+    document.getElementById('diary-avg').textContent = avg !== '—' ? avg : '—';
+    document.getElementById('diary-avg').title = `${recent.length} entries in last 14 days`;
+
+    // Good+ streak (days since last OK or worse)
+    const today = new Date(localToday()+'T12:00:00');
+    let goodStreak = 0;
+    for (const e of [...diaryEntries].sort((a,b) => b.entry_date.localeCompare(a.entry_date))) {
+      if (e.mood_score <= 3) break;
+      const diff = Math.round((today - new Date(e.entry_date+'T12:00:00')) / (24*3600*1000));
+      goodStreak = diff + 1;
+    }
+
+    // No bad streak (days since Poor or Awful)
+    let noBadStreak = 0;
+    for (const e of [...diaryEntries].sort((a,b) => b.entry_date.localeCompare(a.entry_date))) {
+      if (e.mood_score <= 2) break;
+      const diff = Math.round((today - new Date(e.entry_date+'T12:00:00')) / (24*3600*1000));
+      noBadStreak = diff + 1;
+    }
+
+    const gsEl = document.getElementById('diary-good-streak');
+    gsEl.textContent = goodStreak > 0 ? goodStreak + 'd' : '—';
+    gsEl.style.color = goodStreak > 0 ? 'var(--color-success-text)' : 'inherit';
+
+    const bsEl = document.getElementById('diary-bad-streak');
+    bsEl.textContent = noBadStreak > 0 ? noBadStreak + 'd' : '—';
+    bsEl.style.color = noBadStreak > 0 ? 'var(--color-success-text)' : 'inherit';
+  }
+
+  function renderDiaryChart() {
+    const now = new Date(localToday()+'T12:00:00');
+    const labels = [], ratingData = [], avgData = [];
+    const allDates = {};
+    for (const e of diaryEntries) allDates[e.entry_date] = e;
+
+    for (let i = -14; i <= 7; i++) {
+      const d = new Date(now); d.setDate(d.getDate() + i);
+      const iso = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      labels.push(d.toLocaleDateString('en-US',{month:'short',day:'numeric'}));
+      ratingData.push(allDates[iso] ? allDates[iso].mood_score : null);
+    }
+
+    // Rolling avg (all entries up to each day)
+    for (let i = -14; i <= 7; i++) {
+      const d = new Date(now); d.setDate(d.getDate() + i);
+      const iso = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      const relevant = diaryEntries.filter(e => e.entry_date <= iso);
+      avgData.push(relevant.length ? parseFloat((relevant.reduce((s,e)=>s+e.mood_score,0)/relevant.length).toFixed(2)) : null);
+    }
+
+    // Point colors
+    const pointColors = ratingData.map((v,i) => {
+      if (v === null) return 'transparent';
+      const iso_d = new Date(now); iso_d.setDate(iso_d.getDate() + (i-14));
+      const iso = `${iso_d.getFullYear()}-${String(iso_d.getMonth()+1).padStart(2,'0')}-${String(iso_d.getDate()).padStart(2,'0')}`;
+      return moodColor(allDates[iso]?.mood);
+    });
+
+    const ctx = document.getElementById('diary-chart').getContext('2d');
+    if (diaryChart) diaryChart.destroy();
+    diaryChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Rating',
+            data: ratingData,
+            borderColor: '#1a1a18',
+            backgroundColor: pointColors,
+            pointBackgroundColor: pointColors,
+            pointRadius: ratingData.map(v => v ? 6 : 0),
+            spanGaps: false,
+            tension: 0.3,
+            borderWidth: 1.5
+          },
+          {
+            label: 'Avg Rating',
+            data: avgData,
+            borderColor: '#b07800',
+            backgroundColor: 'transparent',
+            pointRadius: 0,
+            tension: 0.4,
+            borderWidth: 1.5,
+            spanGaps: true
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { position: 'top', labels: { font:{size:12}, boxWidth:12 } } },
+        scales: {
+          x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+          y: {
+            min: 0.5, max: 5.5,
+            ticks: {
+              stepSize: 1,
+              callback: v => ({ 1:'Awful',2:'Poor',3:'OK',4:'Good',5:'Great' }[v]||''),
+              font: { size: 11 }
+            },
+            grid: { color: 'rgba(0,0,0,0.05)' }
+          }
+        }
+      }
+    });
+  }
+
+  function renderDiaryLog() {
+    const el = document.getElementById('diary-log');
+    if (!diaryEntries.length) { el.innerHTML = '<p class="placeholder">No entries yet.</p>'; return; }
+    el.innerHTML = diaryEntries.slice(0,10).map(e => `
+      <div style="padding:10px 0; border-bottom:0.5px solid var(--color-border);">
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
+          <span style="font-size:13px; color:var(--color-text-tertiary);">${e.entry_date}</span>
+          <span style="font-weight:500; color:${moodColor(e.mood)};">${e.mood}</span>
+        </div>
+        ${e.general_notes ? `<div style="font-size:13px; margin-bottom:3px;">${e.general_notes}</div>` : ''}
+        ${e.stressors ? `<div style="font-size:12px; color:var(--color-text-secondary);"><span style="font-weight:500;">Stressors:</span> ${e.stressors}</div>` : ''}
+        ${e.proactive_thoughts ? `<div style="font-size:12px; color:var(--color-text-secondary);"><span style="font-weight:500;">Thinking about:</span> ${e.proactive_thoughts}</div>` : ''}
+      </div>`).join('');
+  }
+
+  async function saveDiaryEntry() {
+    const entry_date = document.getElementById('diary-date').value;
+    const general_notes = document.getElementById('diary-notes').value.trim();
+    const stressors = document.getElementById('diary-stressors').value.trim();
+    const proactive_thoughts = document.getElementById('diary-proactive').value.trim();
+
+    if (!entry_date) return setStatus('diary-status','Date is required.','error');
+    if (!selectedMood) return setStatus('diary-status','Please select a mood rating.','error');
+
+    try {
+      await sb('finance_diary','POST',{
+        entry_date, mood: selectedMood, mood_score: selectedMoodScore,
+        general_notes, stressors, proactive_thoughts
+      });
+      setStatus('diary-status','Entry saved.','success');
+      // Reset form
+      document.getElementById('diary-notes').value = '';
+      document.getElementById('diary-stressors').value = '';
+      document.getElementById('diary-proactive').value = '';
+      document.getElementById('diary-date').value = localToday();
+      document.querySelectorAll('.mood-btn').forEach(b => b.classList.remove('selected'));
+      selectedMood = null; selectedMoodScore = null;
+      // Reload
+      diaryEntries = await sb('finance_diary?order=entry_date.desc&limit=60');
+      renderDiaryMetrics();
+      renderDiaryChart();
+      renderDiaryLog();
+    } catch(e) { setStatus('diary-status','Error: '+e.message,'error'); }
   }
 
 </script>
