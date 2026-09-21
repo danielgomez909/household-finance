@@ -389,6 +389,9 @@
           <div style="display:flex; justify-content:space-between; font-size:13px; padding:3px 0; color:var(--color-text-secondary);"><span>Mortgage balance</span><span id="bs-mortgage-balance">—</span></div>
           <div style="display:flex; justify-content:space-between; font-size:13px; font-weight:500; padding-top:4px; border-top:0.5px solid var(--color-border); margin-top:4px;"><span>Equity</span><span id="bs-equity">—</span></div>
         </div>
+
+        <div style="font-size:12px; font-weight:500; text-transform:uppercase; letter-spacing:0.05em; color:var(--color-text-secondary); margin-top:0.5rem;">Goals</div>
+        <div id="bs-goals-section"></div>
       </div>
     </div>
 
@@ -727,6 +730,7 @@
       <button class="inner-tab" onclick="showInnerTab('snapshot', this)">Record balances</button>
       <button class="inner-tab" onclick="showInnerTab('plan-import', this)">Plan import</button>
       <button class="inner-tab" onclick="showInnerTab('targets', this)">Envelope targets</button>
+      <button class="inner-tab" onclick="showInnerTab('goals', this)">Goals</button>
     </div>
 
     <!-- Accounts -->
@@ -960,7 +964,80 @@
       </div>
     </div>
 
+    <!-- Goals -->
+    <div id="inner-goals" class="inner-panel">
+      <div class="card">
+        <div class="card-title">Add / update goal</div>
+        <div class="form-row">
+          <div class="form-group full">
+            <label>Name</label>
+            <input type="text" id="goal-name" placeholder="e.g. Replace roof" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Priority</label>
+            <select id="goal-priority">
+              <option value="P1">P1 — Committed</option>
+              <option value="P2">P2 — Likely</option>
+              <option value="P3">P3 — Considering</option>
+              <option value="P4">P4 — Wish list</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Status</label>
+            <select id="goal-status">
+              <option value="active">Active</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Target amount ($)</label>
+            <input type="number" id="goal-target-amount" placeholder="0" step="100" />
+          </div>
+          <div class="form-group">
+            <label>Current amount ($)</label>
+            <input type="number" id="goal-current-amount" placeholder="0" step="100" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Target year</label>
+            <input type="number" id="goal-target-year" placeholder="e.g. 2027" step="1" />
+          </div>
+          <div class="form-group">
+            <label>Target quarter <span style="font-size:11px; color:var(--color-text-tertiary);">(optional)</span></label>
+            <select id="goal-target-quarter">
+              <option value="">—</option>
+              <option value="1">Q1</option>
+              <option value="2">Q2</option>
+              <option value="3">Q3</option>
+              <option value="4">Q4</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group full">
+            <label>Notes (optional)</label>
+            <input type="text" id="goal-notes" placeholder="Any notes about this goal" />
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <button class="btn btn-primary" id="goal-save-btn" onclick="saveGoal()"><i class="ti ti-plus"></i> Add goal</button>
+          <button class="btn btn-secondary" id="goal-cancel-btn" onclick="cancelGoalEdit()" style="display:none;">Cancel</button>
+        </div>
+        <input type="hidden" id="goal-editing-id" value="" />
+        <div id="goal-status-msg" class="status"></div>
+      </div>
 
+      <div class="card">
+        <div class="card-title">All goals</div>
+        <div id="goals-list"><p class="placeholder">No goals yet.</p></div>
+      </div>
+    </div>
 
   </div><!-- /admin -->
 
@@ -1010,6 +1087,7 @@
     document.getElementById('inner-' + name).classList.add('active');
     if (name === 'snapshot') loadAccountsDropdown();
     if (name === 'targets') loadEnvelopeTargets();
+    if (name === 'goals') loadGoals();
   }
 
   function setStatus(id, msg, type) {
@@ -2894,6 +2972,109 @@
     } catch(e) { setStatus('targets-status','Error: '+e.message,'error'); }
   }
 
+  // ── Goals ─────────────────────────────────────────────────
+  const goalPriorityLabel = { P1:'Committed', P2:'Likely', P3:'Considering', P4:'Wish list' };
+
+  function goalTiming(g) {
+    if (!g.target_year) return '';
+    return g.target_quarter ? `Q${g.target_quarter} ${g.target_year}` : `${g.target_year}`;
+  }
+
+  function editGoal(g) {
+    document.getElementById('goal-name').value = g.name;
+    document.getElementById('goal-priority').value = g.priority;
+    document.getElementById('goal-status').value = g.status;
+    document.getElementById('goal-target-amount').value = g.target_amount ?? '';
+    document.getElementById('goal-current-amount').value = g.current_amount ?? '';
+    document.getElementById('goal-target-year').value = g.target_year ?? '';
+    document.getElementById('goal-target-quarter').value = g.target_quarter ?? '';
+    document.getElementById('goal-notes').value = g.notes || '';
+    document.getElementById('goal-editing-id').value = g.id;
+    document.getElementById('goal-save-btn').innerHTML = '<i class="ti ti-device-floppy"></i> Save changes';
+    document.getElementById('goal-cancel-btn').style.display = 'inline-flex';
+    window.scrollTo({top:0, behavior:'smooth'});
+  }
+
+  function cancelGoalEdit() {
+    document.getElementById('goal-editing-id').value = '';
+    document.getElementById('goal-save-btn').innerHTML = '<i class="ti ti-plus"></i> Add goal';
+    document.getElementById('goal-cancel-btn').style.display = 'none';
+    ['goal-name','goal-target-amount','goal-current-amount','goal-target-year','goal-notes'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('goal-target-quarter').value = '';
+    document.getElementById('goal-priority').value = 'P1';
+    document.getElementById('goal-status').value = 'active';
+  }
+
+  async function saveGoal() {
+    const name = document.getElementById('goal-name').value.trim();
+    const priority = document.getElementById('goal-priority').value;
+    const status = document.getElementById('goal-status').value;
+    const target_amount = parseFloat(document.getElementById('goal-target-amount').value) || null;
+    const current_amount = parseFloat(document.getElementById('goal-current-amount').value) || 0;
+    const target_year = parseInt(document.getElementById('goal-target-year').value) || null;
+    const target_quarter = target_year ? (parseInt(document.getElementById('goal-target-quarter').value) || null) : null;
+    const notes = document.getElementById('goal-notes').value.trim();
+    const editingId = document.getElementById('goal-editing-id').value;
+    if (!name) return setStatus('goal-status-msg', 'Goal name is required.', 'error');
+    try {
+      if (editingId) {
+        await fetch(`${SUPABASE_URL}/rest/v1/financial_goals?id=eq.${editingId}`, {
+          method: 'PATCH',
+          headers: { ...sbHeaders, 'Prefer': 'return=minimal' },
+          body: JSON.stringify({ name, priority, status, target_amount, current_amount, target_year, target_quarter, notes })
+        });
+        setStatus('goal-status-msg', 'Goal updated.', 'success');
+        cancelGoalEdit();
+      } else {
+        await sb('financial_goals', 'POST', { name, priority, status, target_amount, current_amount, target_year, target_quarter, notes });
+        setStatus('goal-status-msg', 'Goal added.', 'success');
+        cancelGoalEdit();
+      }
+      loadGoals();
+    } catch (e) { setStatus('goal-status-msg', 'Error: ' + e.message, 'error'); }
+  }
+
+  async function setGoalStatus(id, status) {
+    try {
+      await fetch(`${SUPABASE_URL}/rest/v1/financial_goals?id=eq.${id}`, {
+        method: 'PATCH',
+        headers: { ...sbHeaders, 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ status })
+      });
+      loadGoals();
+    } catch (e) { setStatus('goal-status-msg', 'Error: ' + e.message, 'error'); }
+  }
+
+  async function loadGoals() {
+    try {
+      const goals = await sb('financial_goals?order=priority,target_year,target_quarter');
+      const el = document.getElementById('goals-list');
+      if (!goals.length) { el.innerHTML = '<p class="placeholder">No goals yet.</p>'; return; }
+      el.innerHTML = goals.map(g => `
+        <div class="list-row" style="${g.status!=='active'?'opacity:0.55;':''}">
+          <div>
+            <span style="font-weight:500;">${g.name}</span>
+            <span class="badge">${g.priority}</span>
+            ${g.status!=='active'?`<span class="badge">${g.status}</span>`:''}
+            ${goalTiming(g)?`<span style="font-size:11px; color:var(--color-text-tertiary); margin-left:6px;">${goalTiming(g)}</span>`:''}
+            <div style="font-size:12px; color:var(--color-text-secondary); margin-top:2px;">
+              $${Math.round(g.current_amount||0).toLocaleString()} of ${g.target_amount?'$'+Math.round(g.target_amount).toLocaleString():'—'}
+              ${g.notes?` · ${g.notes}`:''}
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <button class="btn btn-secondary" style="padding:3px 8px; font-size:12px;" onclick='editGoal(${JSON.stringify(g)})'>Edit</button>
+            ${g.status==='active'?`
+              <button class="btn btn-secondary" style="padding:3px 8px; font-size:12px;" onclick="setGoalStatus('${g.id}','completed')">Complete</button>
+              <button class="btn btn-secondary" style="padding:3px 8px; font-size:12px;" onclick="setGoalStatus('${g.id}','cancelled')">Cancel</button>
+            `:`
+              <button class="btn btn-secondary" style="padding:3px 8px; font-size:12px;" onclick="setGoalStatus('${g.id}','active')">Reactivate</button>
+            `}
+          </div>
+        </div>`).join('');
+    } catch (e) { console.error(e); }
+  }
+
   // ── Balance Sheet ─────────────────────────────────────────
   async function initBalanceSheet() {
     const accounts = await sb('accounts?is_active=eq.true&order=type,name');
@@ -3004,6 +3185,35 @@
       const noteRow = await sb('settings?key=eq.bs_notes');
       document.getElementById('bs-notes').value = noteRow.length ? noteRow[0].value : '';
     } catch(e) { /* ignore */ }
+
+    renderGoalsSection();
+  }
+
+  async function renderGoalsSection() {
+    const el = document.getElementById('bs-goals-section');
+    try {
+      const goals = await sb('financial_goals?status=eq.active&order=priority,target_year,target_quarter');
+      if (!goals.length) { el.innerHTML = '<p class="placeholder" style="padding:0.5rem 0; font-size:12px;">No active goals.</p>'; return; }
+      const fmt = v => '$' + Math.round(Math.abs(v||0)).toLocaleString();
+      const byPriority = {};
+      for (const g of goals) { (byPriority[g.priority] = byPriority[g.priority] || []).push(g); }
+      el.innerHTML = ['P1','P2','P3','P4'].filter(p => byPriority[p]?.length).map(p => {
+        const rows = byPriority[p];
+        const total = rows.reduce((s,g) => s + (g.target_amount||0), 0);
+        const rowsHtml = rows.map(g => {
+          const timing = goalTiming(g);
+          return `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:3px 0;border-bottom:0.5px solid var(--color-border);font-size:13px;">
+            <div><span>${g.name}</span>${timing?`<span style="font-size:10px;color:var(--color-text-tertiary);margin-left:4px;">${timing}</span>`:''}</div>
+            <span style="font-weight:500;white-space:nowrap;">${fmt(g.current_amount)} / ${g.target_amount?fmt(g.target_amount):'—'}</span>
+          </div>`;
+        }).join('');
+        return `<div class="card" style="padding:0.75rem;">
+          <div class="card-title" style="margin-bottom:6px;">${p} — ${goalPriorityLabel[p]}</div>
+          <div>${rowsHtml}</div>
+          <div style="display:flex; justify-content:space-between; font-size:13px; font-weight:500; padding-top:4px; border-top:0.5px solid var(--color-border); margin-top:4px;"><span>Target total</span><span>${fmt(total)}</span></div>
+        </div>`;
+      }).join('');
+    } catch(e) { console.error(e); el.innerHTML = '<p class="placeholder" style="padding:0.5rem 0; font-size:12px;">Could not load goals.</p>'; }
   }
 
   async function saveBsNotes() {
